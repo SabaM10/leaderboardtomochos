@@ -9,7 +9,7 @@ export default async function Home() {
   players.sort(compareRank);
 
   return (
-    <main className="min-h-screen bg-[#07070f] text-zinc-100 px-4 py-12 relative overflow-hidden">
+    <main className="min-h-screen bg-[#07070f] text-zinc-100 px-4 py-8 sm:py-12 relative overflow-hidden">
       {/* background glow blobs */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-purple-900/20 blur-[120px]" />
@@ -24,7 +24,7 @@ export default async function Home() {
             LAS · SoloQ Ranking
           </p>
 
-          <h1 className="text-6xl sm:text-7xl font-black tracking-tighter leading-none">
+          <h1 className="text-5xl sm:text-7xl font-black tracking-tighter leading-none">
             <span
               className="block"
               style={{
@@ -36,7 +36,7 @@ export default async function Home() {
             >
               TOMOCHOS
             </span>
-            <span className="block text-zinc-300 text-4xl sm:text-5xl font-extrabold tracking-[0.15em] mt-1">
+            <span className="block text-zinc-300 text-3xl sm:text-5xl font-extrabold tracking-[0.15em] mt-1">
               LEADERBOARD
             </span>
           </h1>
