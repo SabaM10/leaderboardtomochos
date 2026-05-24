@@ -194,7 +194,7 @@ export default function LeaderboardTable({ players }: { players: Player[] }) {
                 <th className={`${TH} text-right`}>LP</th>
                 <th className={`${TH} text-right`}>W / L</th>
                 <th className={`${TH} text-right`}>Winrate</th>
-                <th className={`${TH} text-right`}>Forma</th>
+                <th className={`${TH} text-right`}>Últimas partidas</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.04]">

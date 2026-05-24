@@ -78,7 +78,8 @@ async function getTopChampion(puuid: string): Promise<string | null> {
 }
 
 async function getLastMatches(puuid: string): Promise<MatchResult[]> {
-  const idsUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=5`;
+  // Pedimos 10 para tener margen si alguna falla por rate limit
+  const idsUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=10`;
   const idsRes = await fetch(idsUrl, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
   if (!idsRes.ok) return [];
 
@@ -100,7 +101,7 @@ async function getLastMatches(puuid: string): Promise<MatchResult[]> {
     })
   );
 
-  return matches.filter(Boolean) as MatchResult[];
+  return (matches.filter(Boolean) as MatchResult[]).slice(0, 5);
 }
 
 // ---------- main ----------
