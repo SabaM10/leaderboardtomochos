@@ -4,8 +4,23 @@ import { compareRank } from "@/lib/ranking";
 import LeaderboardTable from "@/components/leaderboard-table";
 import AutoRefresh from "@/components/auto-refresh";
 
+async function getDDragonVersion(): Promise<string> {
+  try {
+    const res = await fetch("https://ddragon.leagueoflegends.com/api/versions.json", {
+      next: { revalidate: 86400 },
+    });
+    const versions: string[] = await res.json();
+    return versions[0];
+  } catch {
+    return "15.1.1";
+  }
+}
+
 export default async function Home() {
-  const players = await fetchAllPlayers(FRIENDS);
+  const [players, ddVersion] = await Promise.all([
+    fetchAllPlayers(FRIENDS),
+    getDDragonVersion(),
+  ]);
   players.sort(compareRank);
 
   return (
@@ -54,7 +69,7 @@ export default async function Home() {
           </div>
         </div>
 
-        <LeaderboardTable players={players} />
+        <LeaderboardTable players={players} ddVersion={ddVersion} />
 
         <p className="text-center text-zinc-700 text-xs">
           Datos obtenidos de la Riot API · No afiliado con Riot Games

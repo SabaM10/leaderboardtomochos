@@ -85,9 +85,23 @@ function MatchDots({ matches }: { matches: { win: boolean }[] }) {
   );
 }
 
+function ProfileIcon({ iconId, ddVersion, size = 32 }: { iconId: number | null; ddVersion: string; size?: number }) {
+  if (iconId === null) return <div style={{ width: size, height: size }} className="rounded-full bg-zinc-800" />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/profileicon/${iconId}.png`}
+      alt="icon"
+      width={size}
+      height={size}
+      className="rounded-full object-cover ring-1 ring-white/10"
+    />
+  );
+}
+
 // ─── Mobile card ────────────────────────────────────────────────────────────
 
-function PlayerCard({ player, pos }: { player: Player; pos: number }) {
+function PlayerCard({ player, pos, ddVersion }: { player: Player; pos: number; ddVersion: string }) {
   const ranked = player.ranked;
   const wr = ranked ? winrate(ranked.wins, ranked.losses) : null;
   const borderClass = RANK_BORDER[pos] ?? "border-l-2 border-l-transparent";
@@ -104,6 +118,7 @@ function PlayerCard({ player, pos }: { player: Player; pos: number }) {
         {/* top row: position + icon + name + badges */}
         <div className="flex items-center gap-3">
           <span className={`text-lg font-black tabular-nums w-6 shrink-0 ${numColor}`}>{pos + 1}</span>
+          <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={36} />
           {ranked && <TierIcon tier={ranked.tier} size={36} />}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -171,13 +186,13 @@ function PlayerCard({ player, pos }: { player: Player; pos: number }) {
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-export default function LeaderboardTable({ players }: { players: Player[] }) {
+export default function LeaderboardTable({ players, ddVersion }: { players: Player[]; ddVersion: string }) {
   return (
     <>
       {/* ── Mobile: cards ── */}
       <div className="flex flex-col gap-3 sm:hidden">
         {players.map((player, i) => (
-          <PlayerCard key={player.riotId} player={player} pos={i} />
+          <PlayerCard key={player.riotId} player={player} pos={i} ddVersion={ddVersion} />
         ))}
       </div>
 
@@ -213,6 +228,8 @@ export default function LeaderboardTable({ players }: { players: Player[] }) {
                       <span className={`text-sm font-black tabular-nums ${numColor}`}>{i + 1}</span>
                     </td>
                     <td className="px-4 py-5">
+                      <div className="flex items-center gap-3">
+                        <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={36} />
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`font-semibold ${player.error ? "text-zinc-600 italic" : "text-zinc-100"}`}>
@@ -227,6 +244,7 @@ export default function LeaderboardTable({ players }: { players: Player[] }) {
                         {player.topChampionName && (
                           <span className="text-zinc-600 text-xs">{player.topChampionName}</span>
                         )}
+                      </div>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">

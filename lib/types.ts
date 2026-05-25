@@ -61,6 +61,7 @@ export interface Player {
   live: LiveGame | null;
   lastMatches: MatchResult[];
   topChampionName: string | null;
+  profileIconId: number | null;
   error?: string;
 }
 

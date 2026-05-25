@@ -78,6 +78,14 @@ async function getChampionNameById(championId: number): Promise<string | null> {
   return found?.id ?? null;
 }
 
+async function getProfileIconId(puuid: string): Promise<number | null> {
+  const url = `https://la2.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(puuid)}`;
+  const res = await riotFetch(url, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.profileIconId ?? null;
+}
+
 async function getTopChampion(puuid: string): Promise<string | null> {
   const url = `https://la2.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(puuid)}/top?count=1`;
   const res = await riotFetch(url, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
@@ -120,11 +128,12 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
   try {
     const account = await getPuuid(friend.gameName, friend.tagLine);
 
-    const [ranked, live, lastMatches, topChampionName] = await Promise.all([
+    const [ranked, live, lastMatches, topChampionName, profileIconId] = await Promise.all([
       getRankedInfo(account.puuid),
       getLiveGame(account.puuid),
       getLastMatches(account.puuid),
       getTopChampion(account.puuid),
+      getProfileIconId(account.puuid),
     ]);
 
     const score = ranked
@@ -141,6 +150,7 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
       live,
       lastMatches,
       topChampionName,
+      profileIconId,
     };
   } catch (err) {
     return {
@@ -153,6 +163,7 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
       live: null,
       lastMatches: [],
       topChampionName: null,
+      profileIconId: null,
       error: err instanceof Error ? err.message : "Unknown error",
     };
   }
@@ -173,6 +184,7 @@ export async function fetchAllPlayers(friends: FriendConfig[]): Promise<Player[]
       live: null,
       lastMatches: [],
       topChampionName: null,
+      profileIconId: null,
       error: result.reason instanceof Error ? result.reason.message : "Unknown error",
     };
   });
