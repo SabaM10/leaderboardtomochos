@@ -9,18 +9,28 @@ const REVALIDATE = 300;
 
 const riotHeaders = { "X-Riot-Token": RIOT_API_KEY };
 
+async function riotFetch(url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, init);
+    if (res.status !== 429) return res;
+    const wait = parseInt(res.headers.get("Retry-After") ?? "2", 10);
+    await new Promise((r) => setTimeout(r, wait * 1000));
+  }
+  return fetch(url, init);
+}
+
 // ---------- helpers ----------
 
 async function getPuuid(gameName: string, tagLine: string): Promise<RiotAccount> {
   const url = `https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
-  const res = await fetch(url, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
+  const res = await riotFetch(url, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
   if (!res.ok) throw new Error(`ACCOUNT-V1 ${res.status}: ${gameName}#${tagLine}`);
   return res.json();
 }
 
 async function getRankedInfo(puuid: string): Promise<RankedInfo | null> {
   const url = `https://la2.api.riotgames.com/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`;
-  const res = await fetch(url, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
+  const res = await riotFetch(url, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
   if (!res.ok) throw new Error(`LEAGUE-V4 ${res.status}`);
 
   const entries: LeagueEntryDTO[] = await res.json();
@@ -39,7 +49,7 @@ async function getRankedInfo(puuid: string): Promise<RankedInfo | null> {
 
 async function getLiveGame(puuid: string): Promise<LiveGame | null> {
   const url = `https://la2.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${encodeURIComponent(puuid)}`;
-  const res = await fetch(url, { headers: riotHeaders, next: { revalidate: 60 } });
+  const res = await riotFetch(url, { headers: riotHeaders, next: { revalidate: 60 } });
   if (res.status === 404) return null;
   if (!res.ok) return null;
   const data = await res.json();
@@ -70,7 +80,7 @@ async function getChampionNameById(championId: number): Promise<string | null> {
 
 async function getTopChampion(puuid: string): Promise<string | null> {
   const url = `https://la2.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(puuid)}/top?count=1`;
-  const res = await fetch(url, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
+  const res = await riotFetch(url, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
   if (!res.ok) return null;
   const data = await res.json();
   if (!data[0]) return null;
@@ -78,30 +88,29 @@ async function getTopChampion(puuid: string): Promise<string | null> {
 }
 
 async function getLastMatches(puuid: string): Promise<MatchResult[]> {
-  // Pedimos 10 para tener margen si alguna falla por rate limit
-  const idsUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=10`;
-  const idsRes = await fetch(idsUrl, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
+  const idsUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=5`;
+  const idsRes = await riotFetch(idsUrl, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
   if (!idsRes.ok) return [];
 
   const matchIds: string[] = await idsRes.json();
+  const results: MatchResult[] = [];
 
-  const matches = await Promise.all(
-    matchIds.map(async (matchId) => {
-      const res = await fetch(
-        `https://americas.api.riotgames.com/lol/match/v5/matches/${matchId}`,
-        { headers: riotHeaders, next: { revalidate: REVALIDATE } }
-      );
-      if (!res.ok) return null;
-      const data = await res.json();
-      const p = data.info.participants.find(
-        (x: { puuid: string }) => x.puuid === puuid
-      );
-      if (!p) return null;
-      return { win: p.win as boolean, championName: p.championName as string };
-    })
-  );
+  for (const matchId of matchIds) {
+    const res = await riotFetch(
+      `https://americas.api.riotgames.com/lol/match/v5/matches/${matchId}`,
+      { headers: riotHeaders, next: { revalidate: REVALIDATE } }
+    );
+    if (!res.ok) continue;
+    const data = await res.json();
 
-  return (matches.filter(Boolean) as MatchResult[]).slice(0, 5);
+    const p = data.info.participants.find(
+      (x: { puuid: string }) => x.puuid === puuid
+    );
+    if (!p) continue;
+    results.push({ win: p.win as boolean, championName: p.championName as string });
+  }
+
+  return results;
 }
 
 // ---------- main ----------
