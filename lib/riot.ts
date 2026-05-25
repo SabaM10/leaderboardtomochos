@@ -128,13 +128,13 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
   try {
     const account = await getPuuid(friend.gameName, friend.tagLine);
 
-    const [ranked, live, lastMatches, topChampionName, profileIconId] = await Promise.all([
+    const [ranked, live, lastMatches, topChampionName] = await Promise.all([
       getRankedInfo(account.puuid),
       getLiveGame(account.puuid),
       getLastMatches(account.puuid),
       getTopChampion(account.puuid),
-      getProfileIconId(account.puuid),
     ]);
+    const profileIconId = await getProfileIconId(account.puuid);
 
     const score = ranked
       ? computeScore(ranked.tier, ranked.rank, ranked.leaguePoints)
@@ -169,23 +169,38 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
   }
 }
 
-export async function fetchAllPlayers(friends: FriendConfig[]): Promise<Player[]> {
-  const results = await Promise.allSettled(friends.map(fetchPlayer));
+function fallbackPlayer(friend: FriendConfig, reason: unknown): Player {
+  return {
+    riotId: `${friend.gameName}#${friend.tagLine}`,
+    gameName: friend.gameName,
+    tagLine: friend.tagLine,
+    puuid: null,
+    ranked: null,
+    score: -1,
+    live: null,
+    lastMatches: [],
+    topChampionName: null,
+    profileIconId: null,
+    error: reason instanceof Error ? reason.message : "Unknown error",
+  };
+}
 
-  return results.map((result, i) => {
-    if (result.status === "fulfilled") return result.value;
-    return {
-      riotId: `${friends[i].gameName}#${friends[i].tagLine}`,
-      gameName: friends[i].gameName,
-      tagLine: friends[i].tagLine,
-      puuid: null,
-      ranked: null,
-      score: -1,
-      live: null,
-      lastMatches: [],
-      topChampionName: null,
-      profileIconId: null,
-      error: result.reason instanceof Error ? result.reason.message : "Unknown error",
-    };
-  });
+export async function fetchAllPlayers(friends: FriendConfig[]): Promise<Player[]> {
+  const players: Player[] = [];
+  const BATCH = 2;
+
+  for (let i = 0; i < friends.length; i += BATCH) {
+    const batch = friends.slice(i, i + BATCH);
+    const settled = await Promise.allSettled(batch.map(fetchPlayer));
+    for (let j = 0; j < settled.length; j++) {
+      const result = settled[j];
+      players.push(
+        result.status === "fulfilled"
+          ? result.value
+          : fallbackPlayer(batch[j], result.reason)
+      );
+    }
+  }
+
+  return players;
 }
