@@ -1,4 +1,7 @@
-import { Player } from "@/lib/types";
+"use client";
+
+import { useState } from "react";
+import { Player, MatchResult } from "@/lib/types";
 import { winrate } from "@/lib/ranking";
 
 const TIER_META: Record<string, { slug: string; label: string }> = {
@@ -64,6 +67,7 @@ function LiveBadge({ gameStartTime, gameName, tagLine }: { gameStartTime: number
   const opggUrl = `https://www.op.gg/summoners/las/${encodeURIComponent(gameName)}-${encodeURIComponent(tagLine)}/ingame`;
   return (
     <a href={opggUrl} target="_blank" rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/40 text-red-400 text-xs font-bold tracking-wider hover:bg-red-500/25 transition-colors">
       <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
       LIVE
@@ -99,9 +103,129 @@ function ProfileIcon({ iconId, ddVersion, size = 32 }: { iconId: number | null; 
   );
 }
 
+// ─── Match history modal ─────────────────────────────────────────────────────
+
+function kdaRatio(kills: number, deaths: number, assists: number): string {
+  if (deaths === 0) return "Perfect";
+  return ((kills + assists) / deaths).toFixed(2);
+}
+
+function fmtDuration(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function MatchRow({ match, ddVersion }: { match: MatchResult; ddVersion: string }) {
+  const kda = kdaRatio(match.kills, match.deaths, match.assists);
+  const kdaNum = match.deaths === 0 ? 99 : (match.kills + match.assists) / match.deaths;
+  const kdaColor = kdaNum >= 4 ? "text-amber-400" : kdaNum >= 2.5 ? "text-emerald-400" : "text-zinc-400";
+  const csPerMin = (match.cs / (match.durationSecs / 60)).toFixed(1);
+
+  return (
+    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border ${match.win ? "bg-emerald-950/40 border-emerald-800/25" : "bg-red-950/35 border-red-900/25"}`}>
+      {/* Champion icon */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/champion/${match.championName}.png`}
+        alt={match.championName}
+        width={40}
+        height={40}
+        className="rounded-lg object-cover flex-shrink-0"
+      />
+
+      {/* Champion + result */}
+      <div className="w-24 shrink-0">
+        <div className={`text-xs font-bold ${match.win ? "text-emerald-400" : "text-red-400"}`}>
+          {match.win ? "Victoria" : "Derrota"}
+        </div>
+        <div className="text-zinc-400 text-xs truncate">{match.championName}</div>
+      </div>
+
+      {/* KDA */}
+      <div className="flex-1">
+        <div className="text-zinc-200 text-sm font-mono font-semibold">
+          {match.kills} / <span className="text-red-400">{match.deaths}</span> / {match.assists}
+        </div>
+        <div className={`text-xs font-mono ${kdaColor}`}>{kda} KDA</div>
+      </div>
+
+      {/* CS + duration */}
+      <div className="text-right shrink-0">
+        <div className="text-zinc-300 text-xs font-mono">{match.cs} CS <span className="text-zinc-600">({csPerMin}/m)</span></div>
+        <div className="text-zinc-600 text-xs">{fmtDuration(match.durationSecs)}</div>
+      </div>
+    </div>
+  );
+}
+
+function MatchHistoryModal({
+  player,
+  ddVersion,
+  onClose,
+}: {
+  player: Player;
+  ddVersion: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+      <div
+        className="relative bg-[#0c0c1a] border border-white/10 rounded-2xl p-5 w-full max-w-lg shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={40} />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-zinc-100">{player.gameName}</span>
+                <span className="text-zinc-500 text-xs">#{player.tagLine}</span>
+              </div>
+              <p className="text-xs text-zinc-500 tracking-widest uppercase mt-0.5">Últimas 5 partidas · Ranked Solo</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200 transition-colors text-lg leading-none"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Match list */}
+        {player.lastMatches.length === 0 ? (
+          <p className="text-zinc-600 text-sm text-center py-6">Sin datos de partidas recientes</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {player.lastMatches.map((m, i) => (
+              <MatchRow key={i} match={m} ddVersion={ddVersion} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Mobile card ────────────────────────────────────────────────────────────
 
-function PlayerCard({ player, pos, ddVersion }: { player: Player; pos: number; ddVersion: string }) {
+function PlayerCard({
+  player,
+  pos,
+  ddVersion,
+  onClick,
+}: {
+  player: Player;
+  pos: number;
+  ddVersion: string;
+  onClick: () => void;
+}) {
   const ranked = player.ranked;
   const wr = ranked ? winrate(ranked.wins, ranked.losses) : null;
   const borderClass = RANK_BORDER[pos] ?? "border-l-2 border-l-transparent";
@@ -111,11 +235,12 @@ function PlayerCard({ player, pos, ddVersion }: { player: Player; pos: number; d
 
   return (
     <div
-      className={`relative rounded-xl overflow-hidden border border-white/5 ${borderClass}`}
+      className={`relative rounded-xl overflow-hidden border border-white/5 ${borderClass} cursor-pointer active:brightness-90`}
       style={cardBackground(player.topChampionName)}
+      onClick={onClick}
     >
       <div className="px-4 py-4 flex flex-col gap-3">
-        {/* top row: position + icon + name + badges */}
+        {/* top row */}
         <div className="flex items-center gap-3">
           <span className={`text-lg font-black tabular-nums w-6 shrink-0 ${numColor}`}>{pos + 1}</span>
           <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={36} />
@@ -136,32 +261,25 @@ function PlayerCard({ player, pos, ddVersion }: { player: Player; pos: number; d
             </div>
           </div>
           {player.live && (
-            <LiveBadge
-              gameStartTime={player.live.gameStartTime}
-              gameName={player.gameName}
-              tagLine={player.tagLine}
-            />
+            <LiveBadge gameStartTime={player.live.gameStartTime} gameName={player.gameName} tagLine={player.tagLine} />
           )}
         </div>
 
         {/* bottom row: stats */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            {/* LP */}
             <div className="text-center">
               <div className="font-mono font-bold text-zinc-200 text-sm">
                 {ranked ? <>{ranked.leaguePoints}<span className="text-zinc-600 text-xs ml-0.5">lp</span></> : "—"}
               </div>
               <div className="text-zinc-600 text-[10px] uppercase tracking-wider">LP</div>
             </div>
-            {/* Winrate */}
             <div className="text-center">
               <div className={`font-mono font-bold text-sm ${wr !== null ? (wr >= 50 ? "text-emerald-400" : "text-red-400") : "text-zinc-600"}`}>
                 {wr !== null ? `${wr.toFixed(1)}%` : "—"}
               </div>
               <div className="text-zinc-600 text-[10px] uppercase tracking-wider">WR</div>
             </div>
-            {/* W/L */}
             <div className="text-center">
               <div className="font-mono text-xs whitespace-nowrap">
                 {ranked ? (
@@ -175,8 +293,6 @@ function PlayerCard({ player, pos, ddVersion }: { player: Player; pos: number; d
               <div className="text-zinc-600 text-[10px] uppercase tracking-wider">W / L</div>
             </div>
           </div>
-
-          {/* last 5 */}
           <MatchDots matches={player.lastMatches} />
         </div>
       </div>
@@ -187,12 +303,20 @@ function PlayerCard({ player, pos, ddVersion }: { player: Player; pos: number; d
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export default function LeaderboardTable({ players, ddVersion }: { players: Player[]; ddVersion: string }) {
+  const [selected, setSelected] = useState<Player | null>(null);
+
   return (
     <>
       {/* ── Mobile: cards ── */}
       <div className="flex flex-col gap-3 sm:hidden">
         {players.map((player, i) => (
-          <PlayerCard key={player.riotId} player={player} pos={i} ddVersion={ddVersion} />
+          <PlayerCard
+            key={player.riotId}
+            player={player}
+            pos={i}
+            ddVersion={ddVersion}
+            onClick={() => setSelected(player)}
+          />
         ))}
       </div>
 
@@ -218,11 +342,14 @@ export default function LeaderboardTable({ players, ddVersion }: { players: Play
                 const wr = ranked ? winrate(ranked.wins, ranked.losses) : null;
                 const borderClass = RANK_BORDER[i] ?? "";
                 const numColor = RANK_NUM_COLOR[i] ?? "text-zinc-600";
+                const isSelected = selected?.riotId === player.riotId;
 
                 return (
-                  <tr key={player.riotId}
-                    className={`transition-all hover:brightness-75 ${borderClass}`}
+                  <tr
+                    key={player.riotId}
+                    className={`transition-all cursor-pointer hover:brightness-110 ${isSelected ? "brightness-110" : ""} ${borderClass}`}
                     style={rowBackground(player.topChampionName)}
+                    onClick={() => setSelected(isSelected ? null : player)}
                   >
                     <td className="px-4 py-5">
                       <span className={`text-sm font-black tabular-nums ${numColor}`}>{i + 1}</span>
@@ -230,21 +357,21 @@ export default function LeaderboardTable({ players, ddVersion }: { players: Play
                     <td className="px-4 py-5">
                       <div className="flex items-center gap-3">
                         <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={36} />
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`font-semibold ${player.error ? "text-zinc-600 italic" : "text-zinc-100"}`}>
-                            {player.gameName}
-                          </span>
-                          <span className="text-zinc-500 text-xs">#{player.tagLine}</span>
-                          {ranked?.hotStreak && <span title="Racha ganadora" className="text-base leading-none">🔥</span>}
-                          {player.live && (
-                            <LiveBadge gameStartTime={player.live.gameStartTime} gameName={player.gameName} tagLine={player.tagLine} />
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`font-semibold ${player.error ? "text-zinc-600 italic" : "text-zinc-100"}`}>
+                              {player.gameName}
+                            </span>
+                            <span className="text-zinc-500 text-xs">#{player.tagLine}</span>
+                            {ranked?.hotStreak && <span title="Racha ganadora" className="text-base leading-none">🔥</span>}
+                            {player.live && (
+                              <LiveBadge gameStartTime={player.live.gameStartTime} gameName={player.gameName} tagLine={player.tagLine} />
+                            )}
+                          </div>
+                          {player.topChampionName && (
+                            <span className="text-zinc-600 text-xs">{player.topChampionName}</span>
                           )}
                         </div>
-                        {player.topChampionName && (
-                          <span className="text-zinc-600 text-xs">{player.topChampionName}</span>
-                        )}
-                      </div>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
@@ -282,6 +409,15 @@ export default function LeaderboardTable({ players, ddVersion }: { players: Play
           </table>
         </div>
       </div>
+
+      {/* ── Modal ── */}
+      {selected && (
+        <MatchHistoryModal
+          player={selected}
+          ddVersion={ddVersion}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </>
   );
 }

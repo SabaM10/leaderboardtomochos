@@ -49,6 +49,11 @@ export interface LiveGame {
 export interface MatchResult {
   win: boolean;
   championName: string;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  durationSecs: number;
 }
 
 export interface Player {

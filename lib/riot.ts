@@ -115,7 +115,15 @@ async function getLastMatches(puuid: string): Promise<MatchResult[]> {
       (x: { puuid: string }) => x.puuid === puuid
     );
     if (!p) continue;
-    results.push({ win: p.win as boolean, championName: p.championName as string });
+    results.push({
+      win: p.win as boolean,
+      championName: p.championName as string,
+      kills: p.kills as number,
+      deaths: p.deaths as number,
+      assists: p.assists as number,
+      cs: (p.totalMinionsKilled + p.neutralMinionsKilled) as number,
+      durationSecs: data.info.gameDuration as number,
+    });
   }
 
   return results;
