@@ -1,0 +1,14 @@
+name: Check Top 1
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # cada 10 minutos
+  workflow_dispatch:           # también se puede correr manualmente
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint
+        run: |
+          curl -sf "${{ secrets.VERCEL_APP_URL }}/api/cron/check-top1?secret=${{ secrets.CRON_SECRET }}"
