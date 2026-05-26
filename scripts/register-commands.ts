@@ -14,6 +14,17 @@ const friends = [
   { gameName: "ChoiWee", tagLine: "LAS" },
 ];
 
+const playerOption = {
+  name: "jugador",
+  description: "Selecciona el jugador",
+  type: 3, // STRING
+  required: true,
+  choices: friends.map((f) => ({
+    name: f.gameName,
+    value: `${f.gameName}#${f.tagLine}`,
+  })),
+};
+
 const commands = [
   {
     name: "tabla",
@@ -21,19 +32,17 @@ const commands = [
   },
   {
     name: "elo",
-    description: "Muestra el elo de un jugador",
-    options: [
-      {
-        name: "jugador",
-        description: "Selecciona el jugador",
-        type: 3, // STRING
-        required: true,
-        choices: friends.map((f) => ({
-          name: f.gameName,
-          value: `${f.gameName}#${f.tagLine}`,
-        })),
-      },
-    ],
+    description: "Muestra el elo detallado de un jugador",
+    options: [playerOption],
+  },
+  {
+    name: "kda",
+    description: "Muestra el KDA de un jugador en sus últimas 5 partidas",
+    options: [playerOption],
+  },
+  {
+    name: "ayuda",
+    description: "Muestra todos los comandos disponibles",
   },
 ];
 

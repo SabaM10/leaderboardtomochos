@@ -1,12 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
-import { verifyKey } from "discord-interactions";
 import { fetchAllPlayers } from "@/lib/riot";
 import { FRIENDS } from "@/config/friends";
-import { buildLeaderboardEmbed, buildPlayerEmbed } from "@/lib/discord-format";
+import { buildLeaderboardEmbed, buildPlayerEmbed, buildKdaEmbed, buildAyudaEmbed } from "@/lib/discord-format";
 
-const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY!;
 const APP_ID = process.env.DISCORD_APPLICATION_ID!;
+
+function hexToBytes(hex: string): ArrayBuffer {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+  }
+  return bytes.buffer as ArrayBuffer;
+}
+
+async function verifySignature(
+  publicKey: string,
+  signature: string,
+  timestamp: string,
+  body: string
+): Promise<boolean> {
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      hexToBytes(publicKey),
+      { name: "Ed25519" },
+      false,
+      ["verify"]
+    );
+    return await crypto.subtle.verify(
+      "Ed25519",
+      key,
+      hexToBytes(signature),
+      new TextEncoder().encode(timestamp + body)
+    );
+  } catch {
+    return false;
+  }
+}
 
 async function getDDVersion(): Promise<string> {
   try {
@@ -31,7 +62,8 @@ export async function POST(req: NextRequest) {
   const timestamp = req.headers.get("x-signature-timestamp") ?? "";
   const rawBody = await req.text();
 
-  const isValid = await verifyKey(rawBody, signature, timestamp, PUBLIC_KEY);
+  const publicKey = process.env.DISCORD_PUBLIC_KEY ?? "";
+  const isValid = await verifySignature(publicKey, signature, timestamp, rawBody);
   if (!isValid) {
     return new NextResponse("Invalid request signature", { status: 401 });
   }
@@ -85,6 +117,36 @@ export async function POST(req: NextRequest) {
         })()
       );
       return NextResponse.json({ type: 5 });
+    }
+
+    if (name === "kda") {
+      const riotId: string = interaction.data.options[0].value;
+      const [gameName, tagLine] = riotId.split("#");
+      const friend = FRIENDS.find(
+        (f) => f.gameName === gameName && f.tagLine === tagLine
+      );
+
+      if (!friend) {
+        return NextResponse.json({
+          type: 4,
+          data: { content: "Jugador no encontrado.", flags: 64 },
+        });
+      }
+
+      waitUntil(
+        (async () => {
+          const players = await fetchAllPlayers([friend]);
+          await followUp(token, { embeds: [buildKdaEmbed(players[0])] });
+        })()
+      );
+      return NextResponse.json({ type: 5 });
+    }
+
+    if (name === "ayuda") {
+      return NextResponse.json({
+        type: 4,
+        data: { embeds: [buildAyudaEmbed()] },
+      });
     }
   }
 

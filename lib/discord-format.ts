@@ -34,23 +34,24 @@ function rankLabel(player: Player): string {
   const { tier, rank, leaguePoints } = player.ranked;
   const emoji = TIER_EMOJI[tier] ?? "";
   const div = NO_DIVISION.has(tier) ? "" : ` ${rank}`;
-  return `${emoji} ${tier}${div} • ${leaguePoints} LP`;
+  return `${emoji} ${tier}${div} · ${leaguePoints} LP`;
 }
 
 export function buildLeaderboardEmbed(players: Player[]): object {
   const MEDALS = ["🥇", "🥈", "🥉"];
 
   const lines = players.map((p, i) => {
-    const pos = MEDALS[i] ?? `**${i + 1}.**`;
+    const pos = MEDALS[i] ?? `${i + 1}.`;
     const wr = p.ranked
-      ? ` | ${winrate(p.ranked.wins, p.ranked.losses).toFixed(1)}% WR`
+      ? ` · ${winrate(p.ranked.wins, p.ranked.losses).toFixed(1)}% WR`
       : "";
     const live = p.live ? " 🔴" : "";
     const hot = p.ranked?.hotStreak ? " 🔥" : "";
     const matches = p.lastMatches.length
-      ? p.lastMatches.map((m) => (m.win ? "✅" : "❌")).join(" ")
+      ? p.lastMatches.map((m) => (m.win ? "✅" : "❌")).join("")
       : "—";
-    return `${pos} **${p.gameName}**#${p.tagLine}${live}${hot}\n> ${rankLabel(p)}${wr} | ${matches}`;
+    // Two clean lines per player — no blockquote so no wrapping
+    return `${pos} **${p.gameName}**#${p.tagLine}${live}${hot}\n${rankLabel(p)}${wr} · ${matches}`;
   });
 
   return {
@@ -92,11 +93,8 @@ export function buildPlayerEmbed(player: Player, ddVersion: string): object {
     const details = player.lastMatches
       .map((m) => {
         const mins = Math.floor(m.durationSecs / 60);
-        const kda =
-          m.deaths === 0
-            ? "Perfect"
-            : ((m.kills + m.assists) / m.deaths).toFixed(2);
-        return `${m.championName} — ${m.kills}/${m.deaths}/${m.assists} (${kda} KDA) · ${mins}m`;
+        const kda = m.deaths === 0 ? "Perfect" : ((m.kills + m.assists) / m.deaths).toFixed(2);
+        return `${m.win ? "✅" : "❌"} **${m.championName}** · ${m.kills}/${m.deaths}/${m.assists} (${kda}) · ${mins}m`;
       })
       .join("\n");
     fields.push({ name: "Últimas partidas", value: `${dots}\n${details}`, inline: false });
@@ -116,5 +114,67 @@ export function buildPlayerEmbed(player: Player, ddVersion: string): object {
     color,
     thumbnail,
     timestamp: new Date().toISOString(),
+  };
+}
+
+export function buildKdaEmbed(player: Player): object {
+  const tier = player.ranked?.tier ?? "UNRANKED";
+  const color = TIER_COLOR[tier] ?? 0x636363;
+
+  if (!player.lastMatches.length) {
+    return {
+      title: `📊 ${player.gameName}#${player.tagLine}`,
+      description: "No hay partidas recientes disponibles.",
+      color,
+    };
+  }
+
+  const n = player.lastMatches.length;
+  const totalK = player.lastMatches.reduce((s, m) => s + m.kills, 0);
+  const totalD = player.lastMatches.reduce((s, m) => s + m.deaths, 0);
+  const totalA = player.lastMatches.reduce((s, m) => s + m.assists, 0);
+  const avgKda = totalD === 0 ? "Perfect" : ((totalK + totalA) / totalD).toFixed(2);
+
+  const details = player.lastMatches
+    .map((m) => {
+      const kda = m.deaths === 0 ? "Perfect" : ((m.kills + m.assists) / m.deaths).toFixed(2);
+      return `${m.win ? "✅" : "❌"} **${m.championName}** · ${m.kills}/${m.deaths}/${m.assists} → ${kda} KDA`;
+    })
+    .join("\n");
+
+  return {
+    title: `📊 KDA · ${player.gameName}#${player.tagLine}`,
+    description: `Promedio últimas **${n}** partidas ranked\n**${(totalK / n).toFixed(1)} / ${(totalD / n).toFixed(1)} / ${(totalA / n).toFixed(1)}** → **${avgKda} KDA**\n\n${details}`,
+    color,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+export function buildAyudaEmbed(): object {
+  return {
+    title: "📖 Comandos de tomochot",
+    fields: [
+      {
+        name: "/tabla",
+        value: "Muestra el leaderboard completo con elo, winrate y últimas partidas de todos los mochos.",
+        inline: false,
+      },
+      {
+        name: "/elo [jugador]",
+        value: "Elo detallado de un jugador: tier, LP, winrate e historial de las últimas 5 partidas.",
+        inline: false,
+      },
+      {
+        name: "/kda [jugador]",
+        value: "KDA promedio de un jugador en sus últimas 5 partidas ranked, con detalle por partida.",
+        inline: false,
+      },
+      {
+        name: "/ayuda",
+        value: "Muestra este mensaje.",
+        inline: false,
+      },
+    ],
+    color: 0x5865F2,
   };
 }
