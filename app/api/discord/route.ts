@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { fetchAllPlayers } from "@/lib/riot";
 import { FRIENDS } from "@/config/friends";
+import { compareRank } from "@/lib/ranking";
 import { buildLeaderboardEmbed, buildPlayerEmbed, buildKdaEmbed, buildAyudaEmbed } from "@/lib/discord-format";
 
 const APP_ID = process.env.DISCORD_APPLICATION_ID!;
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
             fetchAllPlayers(FRIENDS),
             getDDVersion(),
           ]);
+          players.sort(compareRank);
           await followUp(token, { embeds: [buildLeaderboardEmbed(players)] });
         })()
       );

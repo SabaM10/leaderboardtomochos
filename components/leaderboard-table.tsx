@@ -252,6 +252,17 @@ function PlayerCard({
               </span>
               <span className="text-zinc-500 text-xs">#{player.tagLine}</span>
               {ranked?.hotStreak && <span className="text-base leading-none">🔥</span>}
+              <a
+                href={`https://www.op.gg/summoners/las/${encodeURIComponent(player.gameName)}-${encodeURIComponent(player.tagLine)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center justify-center w-5 h-5 rounded bg-[#5383e8]/20 hover:bg-[#5383e8]/40 transition-colors"
+                title="Ver en OP.GG"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="https://opgg-static.akamaized.net/favicon.ico" alt="OP.GG" width={12} height={12} className="rounded-sm" />
+              </a>
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-zinc-500 text-xs">{tierLabel}</span>
