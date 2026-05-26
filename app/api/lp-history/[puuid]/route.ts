@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { kv } from "@vercel/kv";
 import { LpSnapshot, Tier, Division } from "@/lib/types";
 
 const RIOT_KEY = process.env.RIOT_API_KEY!;
@@ -14,7 +15,6 @@ async function riotFetch(url: string): Promise<Response> {
   return fetch(url, { headers: hdrs, next: { revalidate: 3600 } });
 }
 
-// Maps tier+rank+lp to a linear 0-3400 scale (each division = 100, each tier = 400)
 export function toDisplayLp(tier: string, rank: string | null, lp: number): number {
   const tierBase: Record<string, number> = {
     IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600,
@@ -50,6 +50,9 @@ function fromDisplayLp(score: number): { tier: Tier; rank: Division | null; lp: 
   return { tier: "IRON", rank: "IV", lp: 0 };
 }
 
+// Keep fromDisplayLp exported for lp-graph.tsx if needed
+export { fromDisplayLp };
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ puuid: string }> }
@@ -61,19 +64,24 @@ export async function GET(
 
   if (tier === "UNRANKED") return NextResponse.json([]);
 
-  // Fetch 25 ranked solo match IDs
+  // Load real LP snapshots from KV (accurate, collected every 10 min by cron)
+  const kvRaw = (await kv.get<{ t: number; s: number }[]>(`leaderboard:lp-snapshots:${puuid}`)) ?? [];
+  const realSnapshots: LpSnapshot[] = kvRaw.map(({ t, s }) => ({
+    timestamp: t,
+    score: s,
+    approximate: false,
+  }));
+
+  // Fetch match history to fill gaps before the first real snapshot
   const idsRes = await riotFetch(
     `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=25`
   );
-  if (!idsRes.ok) return NextResponse.json([]);
+  if (!idsRes.ok) return NextResponse.json(realSnapshots);
   const matchIds: string[] = await idsRes.json();
 
-  // Fetch win/loss + end timestamp for each match
   const matchData: { timestamp: number; win: boolean }[] = [];
   for (const matchId of matchIds) {
-    const res = await riotFetch(
-      `https://americas.api.riotgames.com/lol/match/v5/matches/${matchId}`
-    );
+    const res = await riotFetch(`https://americas.api.riotgames.com/lol/match/v5/matches/${matchId}`);
     if (!res.ok) continue;
     const data = await res.json();
     const p = data.info.participants.find((x: { puuid: string }) => x.puuid === puuid);
@@ -84,22 +92,33 @@ export async function GET(
     });
   }
 
-  // matchData is already newest-first; reconstruct backwards from current LP
   const snapshots: LpSnapshot[] = [];
-  const currentScore = toDisplayLp(tier, rank, lp);
 
-  // Today's real snapshot
-  snapshots.push({ timestamp: Date.now(), score: currentScore, approximate: false });
-
-  let score = currentScore;
-  for (const match of matchData) {
-    // This match caused a ±LP change, so BEFORE this match the score was the opposite
-    const lpChange = match.win ? 20 : -18;
-    score = score - lpChange;
-    snapshots.push({ timestamp: match.timestamp, score, approximate: true });
+  if (realSnapshots.length > 0) {
+    // Estimate backwards only for matches before our first real snapshot
+    const oldestReal = realSnapshots[0];
+    let score = oldestReal.score;
+    const beforeMatches = matchData.filter((m) => m.timestamp < oldestReal.timestamp);
+    for (const match of beforeMatches) {
+      const lpChange = match.win ? 20 : -18;
+      score = Math.max(0, score - lpChange);
+      snapshots.push({ timestamp: match.timestamp, score, approximate: true });
+    }
+    snapshots.push(...realSnapshots);
+  } else {
+    // No real snapshots yet — estimate backwards from current LP but cap excursions
+    const currentScore = toDisplayLp(tier, rank, lp);
+    snapshots.push({ timestamp: Date.now(), score: currentScore, approximate: false });
+    let score = currentScore;
+    for (const match of matchData) {
+      const lpChange = match.win ? 20 : -18;
+      score = Math.max(0, score - lpChange);
+      // Cap: never estimate more than 300 pts above the current score (prevents wild Challenger readings)
+      score = Math.min(score, currentScore + 300);
+      snapshots.push({ timestamp: match.timestamp, score, approximate: true });
+    }
   }
 
   snapshots.sort((a, b) => a.timestamp - b.timestamp);
-
   return NextResponse.json(snapshots);
 }

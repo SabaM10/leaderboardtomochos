@@ -7,6 +7,17 @@ import { Tier, Division } from "@/lib/types";
 
 const KV_KEY = "leaderboard:top1";
 const KV_RANKS_KEY = "leaderboard:player-ranks";
+const KV_LP_PREFIX = "leaderboard:lp-snapshots";
+const LP_SNAPSHOT_MAX = 2016; // ~14 days at 10-min intervals
+
+function toDisplayLp(tier: string, rank: string | null, lp: number): number {
+  const tierBase: Record<string, number> = {
+    IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600,
+    EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2900, CHALLENGER: 3000,
+  };
+  const rankAdd: Record<string, number> = { IV: 0, III: 100, II: 200, I: 300 };
+  return (tierBase[tier] ?? 0) + (rank ? (rankAdd[rank] ?? 0) : 0) + Math.min(lp, 100);
+}
 
 interface StoredRank {
   tier: Tier;
@@ -104,6 +115,23 @@ export async function GET(req: NextRequest) {
   }
 
   await kv.set(KV_RANKS_KEY, currentRanks);
+
+  // Save LP snapshots for accurate graph history
+  const now = Date.now();
+  await Promise.all(
+    players
+      .filter((p) => p.puuid && p.ranked)
+      .map(async (p) => {
+        const score = toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints);
+        const key = `${KV_LP_PREFIX}:${p.puuid}`;
+        const existing = (await kv.get<{ t: number; s: number }[]>(key)) ?? [];
+        const last = existing[existing.length - 1];
+        if (last && now - last.t < 60_000) return; // skip if saved less than a minute ago
+        existing.push({ t: now, s: score });
+        if (existing.length > LP_SNAPSHOT_MAX) existing.splice(0, existing.length - LP_SNAPSHOT_MAX);
+        await kv.set(key, existing);
+      })
+  );
 
   const demotions: string[] = [];
   const promotions: string[] = [];

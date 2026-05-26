@@ -25,7 +25,7 @@ const TIER_COLORS: Record<string, string> = {
   IRON:        "#786450",
 };
 
-const PAD = { top: 16, right: 12, bottom: 32, left: 56 };
+const PAD = { top: 16, right: 12, bottom: 32, left: 76 };
 const CHART_W = 500;
 const CHART_H = 200;
 const PLOT_W = CHART_W - PAD.left - PAD.right;
