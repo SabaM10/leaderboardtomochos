@@ -61,21 +61,33 @@ export async function GET(req: NextRequest) {
   const sorted = [...players].sort(compareRank);
   const top1 = sorted.find((p) => p.ranked && p.score > 0);
 
-  // --- Demotion detection ---
-  const simulateId = req.nextUrl.searchParams.get("simulate");
+  const tierOrder: Tier[] = [
+    "IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM",
+    "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER",
+  ];
+
+  const simulateDemotion = req.nextUrl.searchParams.get("simulate");
+  const simulatePromotion = req.nextUrl.searchParams.get("simulatepro");
   const previousRanks = (await kv.get<StoredRanks>(KV_RANKS_KEY)) ?? {};
 
-  // Simulate: override previous rank for a player to one tier above their current
-  if (simulateId) {
-    const tierOrder: Tier[] = [
-      "IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM",
-      "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER",
-    ];
-    const target = players.find((p) => p.riotId === simulateId);
+  // Simulate demotion: set previous tier one above current
+  if (simulateDemotion) {
+    const target = players.find((p) => p.riotId === simulateDemotion);
     if (target?.ranked) {
       const idx = tierOrder.indexOf(target.ranked.tier);
       if (idx < tierOrder.length - 1) {
-        previousRanks[simulateId] = { tier: tierOrder[idx + 1], rank: null };
+        previousRanks[simulateDemotion] = { tier: tierOrder[idx + 1], rank: null };
+      }
+    }
+  }
+
+  // Simulate promotion: set previous tier one below current
+  if (simulatePromotion) {
+    const target = players.find((p) => p.riotId === simulatePromotion);
+    if (target?.ranked) {
+      const idx = tierOrder.indexOf(target.ranked.tier);
+      if (idx > 0) {
+        previousRanks[simulatePromotion] = { tier: tierOrder[idx - 1], rank: "I" };
       }
     }
   }
@@ -94,6 +106,7 @@ export async function GET(req: NextRequest) {
   await kv.set(KV_RANKS_KEY, currentRanks);
 
   const demotions: string[] = [];
+  const promotions: string[] = [];
 
   if (Object.keys(previousRanks).length > 0) {
     for (const player of players) {
@@ -103,16 +116,22 @@ export async function GET(req: NextRequest) {
 
       const prevWeight = TIER_WEIGHTS[prev.tier] ?? 0;
       const currWeight = TIER_WEIGHTS[player.ranked.tier] ?? 0;
+      const roleId = process.env.DISCORD_LOL_ROLE_ID;
+      const mention = roleId ? `<@&${roleId}> ` : "";
 
       if (currWeight < prevWeight) {
         const fromLabel = formatTier(prev.tier, prev.rank);
         const toLabel = formatTier(player.ranked.tier, player.ranked.rank ?? null);
         demotions.push(`${player.gameName}: ${fromLabel} → ${toLabel}`);
-
-        const roleId = process.env.DISCORD_LOL_ROLE_ID;
-        const mention = roleId ? `<@&${roleId}> ` : "";
         await sendDiscordMessage(
           `${mention}📉 **${player.gameName}** bajó de **${fromLabel}** a **${toLabel}** 💀`
+        );
+      } else if (currWeight > prevWeight) {
+        const fromLabel = formatTier(prev.tier, prev.rank);
+        const toLabel = formatTier(player.ranked.tier, player.ranked.rank ?? null);
+        promotions.push(`${player.gameName}: ${fromLabel} → ${toLabel}`);
+        await sendDiscordMessage(
+          `${mention}📈 **${player.gameName}** subió de **${fromLabel}** a **${toLabel}** 🎉`
         );
       }
     }
@@ -120,7 +139,7 @@ export async function GET(req: NextRequest) {
 
   // --- Top 1 detection ---
   if (!top1) {
-    return NextResponse.json({ message: "No hay jugadores rankeados", demotions });
+    return NextResponse.json({ message: "No hay jugadores rankeados", demotions, promotions });
   }
 
   const currentId = top1.riotId;
@@ -129,11 +148,11 @@ export async function GET(req: NextRequest) {
   await kv.set(KV_KEY, currentId);
 
   if (!previousId) {
-    return NextResponse.json({ message: "Primera corrida - guardado", top1: currentId, demotions });
+    return NextResponse.json({ message: "Primera corrida - guardado", top1: currentId, demotions, promotions });
   }
 
   if (previousId === currentId) {
-    return NextResponse.json({ message: "Sin cambio", top1: currentId, demotions });
+    return NextResponse.json({ message: "Sin cambio", top1: currentId, demotions, promotions });
   }
 
   const channelId = process.env.DISCORD_ALERT_CHANNEL_ID;
@@ -163,5 +182,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: err }, { status: 500 });
   }
 
-  return NextResponse.json({ message: "Alerta enviada", anterior: previousId, nuevo: currentId, demotions });
+  return NextResponse.json({ message: "Alerta enviada", anterior: previousId, nuevo: currentId, demotions, promotions });
 }
