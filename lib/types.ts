@@ -74,3 +74,9 @@ export interface FriendConfig {
   gameName: string;
   tagLine: string;
 }
+
+export interface LpSnapshot {
+  timestamp: number;
+  score: number;      // toDisplayLp value used as chart Y axis
+  approximate: boolean;
+}

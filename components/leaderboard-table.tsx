@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Player, MatchResult } from "@/lib/types";
 import { winrate } from "@/lib/ranking";
+import LpGraph from "@/components/lp-graph";
 
 const TIER_META: Record<string, { slug: string; label: string }> = {
   CHALLENGER:  { slug: "challenger",  label: "Challenger"  },
@@ -182,6 +183,8 @@ function MatchRow({ match, ddVersion }: { match: MatchResult; ddVersion: string 
   );
 }
 
+type ModalTab = "matches" | "lp";
+
 function MatchHistoryModal({
   player,
   ddVersion,
@@ -191,6 +194,8 @@ function MatchHistoryModal({
   ddVersion: string;
   onClose: () => void;
 }) {
+  const [tab, setTab] = useState<ModalTab>("matches");
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -210,7 +215,7 @@ function MatchHistoryModal({
                 <span className="font-bold text-zinc-100">{player.gameName}</span>
                 <span className="text-zinc-500 text-xs">#{player.tagLine}</span>
               </div>
-              <p className="text-xs text-zinc-500 tracking-widest uppercase mt-0.5">Últimas 5 partidas · Ranked Solo</p>
+              <p className="text-xs text-zinc-500 tracking-widest uppercase mt-0.5">Ranked Solo · LAS</p>
             </div>
           </div>
           <button
@@ -221,16 +226,36 @@ function MatchHistoryModal({
           </button>
         </div>
 
-        {/* Match list */}
-        {player.lastMatches.length === 0 ? (
-          <p className="text-zinc-600 text-sm text-center py-6">Sin datos de partidas recientes</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {player.lastMatches.map((m, i) => (
-              <MatchRow key={i} match={m} ddVersion={ddVersion} />
-            ))}
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-1 mb-4 bg-white/[0.04] rounded-xl p-1">
+          <button
+            onClick={() => setTab("matches")}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${tab === "matches" ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
+          >
+            Últimas partidas
+          </button>
+          <button
+            onClick={() => setTab("lp")}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${tab === "lp" ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
+          >
+            Historial LP
+          </button>
+        </div>
+
+        {/* Content */}
+        {tab === "matches" && (
+          player.lastMatches.length === 0 ? (
+            <p className="text-zinc-600 text-sm text-center py-6">Sin datos de partidas recientes</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {player.lastMatches.map((m, i) => (
+                <MatchRow key={i} match={m} ddVersion={ddVersion} />
+              ))}
+            </div>
+          )
         )}
+
+        {tab === "lp" && <LpGraph player={player} />}
       </div>
     </div>
   );
