@@ -89,17 +89,40 @@ function MatchDots({ matches }: { matches: { win: boolean }[] }) {
   );
 }
 
-function ProfileIcon({ iconId, ddVersion, size = 32 }: { iconId: number | null; ddVersion: string; size?: number }) {
-  if (iconId === null) return <div style={{ width: size, height: size }} className="rounded-full bg-zinc-800" />;
-  return (
+function ProfileIcon({
+  iconId, ddVersion, size = 32, gameName, tagLine,
+}: {
+  iconId: number | null;
+  ddVersion: string;
+  size?: number;
+  gameName?: string;
+  tagLine?: string;
+}) {
+  const inner = iconId !== null ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={`https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/profileicon/${iconId}.png`}
       alt="icon"
       width={size}
       height={size}
-      className="rounded-full object-cover ring-1 ring-white/10"
+      className="rounded-full object-cover ring-1 ring-white/10 hover:ring-[#5383e8]/60 transition-all"
     />
+  ) : (
+    <div style={{ width: size, height: size }} className="rounded-full bg-zinc-800" />
+  );
+
+  if (!gameName || !tagLine) return inner;
+  return (
+    <a
+      href={`https://www.op.gg/summoners/las/${encodeURIComponent(gameName)}-${encodeURIComponent(tagLine)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      title="Ver en OP.GG"
+      className="shrink-0"
+    >
+      {inner}
+    </a>
   );
 }
 
@@ -181,7 +204,7 @@ function MatchHistoryModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={40} />
+            <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={40} gameName={player.gameName} tagLine={player.tagLine} />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-zinc-100">{player.gameName}</span>
@@ -243,7 +266,7 @@ function PlayerCard({
         {/* top row */}
         <div className="flex items-center gap-3">
           <span className={`text-lg font-black tabular-nums w-6 shrink-0 ${numColor}`}>{pos + 1}</span>
-          <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={36} />
+          <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={36} gameName={player.gameName} tagLine={player.tagLine} />
           {ranked && <TierIcon tier={ranked.tier} size={36} />}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -252,17 +275,6 @@ function PlayerCard({
               </span>
               <span className="text-zinc-500 text-xs">#{player.tagLine}</span>
               {ranked?.hotStreak && <span className="text-base leading-none">🔥</span>}
-              <a
-                href={`https://www.op.gg/summoners/las/${encodeURIComponent(player.gameName)}-${encodeURIComponent(player.tagLine)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center justify-center w-5 h-5 rounded bg-[#5383e8]/20 hover:bg-[#5383e8]/40 transition-colors"
-                title="Ver en OP.GG"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="https://opgg-static.akamaized.net/favicon.ico" alt="OP.GG" width={12} height={12} className="rounded-sm" />
-              </a>
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-zinc-500 text-xs">{tierLabel}</span>
@@ -367,7 +379,7 @@ export default function LeaderboardTable({ players, ddVersion }: { players: Play
                     </td>
                     <td className="px-4 py-5">
                       <div className="flex items-center gap-3">
-                        <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={36} />
+                        <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={36} gameName={player.gameName} tagLine={player.tagLine} />
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`font-semibold ${player.error ? "text-zinc-600 italic" : "text-zinc-100"}`}>
