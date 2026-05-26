@@ -15,8 +15,9 @@ const ubuntuMono = Ubuntu_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SoloQ Leaderboard — LAS",
+  title: "Tomochos Leaderboard",
   description: "Ranking de SoloQ entre amigos en LAS",
+  icons: { icon: "/logo.png" },
 };
 
 export default function RootLayout({

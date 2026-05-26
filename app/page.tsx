@@ -35,6 +35,11 @@ export default async function Home() {
       <div className="relative max-w-4xl mx-auto space-y-10">
         {/* header */}
         <div className="text-center space-y-2">
+          <div className="flex justify-center mb-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Tomochos" className="w-20 h-20 sm:w-24 sm:h-24 object-contain rounded-full" />
+          </div>
+
           <p className="text-xs font-semibold tracking-[0.3em] uppercase text-amber-500/80">
             LAS · SoloQ Ranking
           </p>
