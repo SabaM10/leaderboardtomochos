@@ -2,9 +2,54 @@ import { NextRequest, NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
 import { fetchAllPlayers } from "@/lib/riot";
 import { FRIENDS } from "@/config/friends";
-import { compareRank } from "@/lib/ranking";
+import { compareRank, TIER_WEIGHTS } from "@/lib/ranking";
+import { Tier, Division } from "@/lib/types";
 
 const KV_KEY = "leaderboard:top1";
+const KV_RANKS_KEY = "leaderboard:player-ranks";
+
+interface StoredRank {
+  tier: Tier;
+  rank: Division | null;
+}
+
+type StoredRanks = Record<string, StoredRank>;
+
+function formatTier(tier: Tier, rank: Division | null): string {
+  const names: Record<Tier, string> = {
+    CHALLENGER: "Challenger",
+    GRANDMASTER: "Grandmaster",
+    MASTER: "Master",
+    DIAMOND: "Diamante",
+    EMERALD: "Esmeralda",
+    PLATINUM: "Platino",
+    GOLD: "Oro",
+    SILVER: "Plata",
+    BRONZE: "Bronce",
+    IRON: "Hierro",
+    UNRANKED: "Sin rango",
+  };
+  const name = names[tier] ?? tier;
+  if (rank && !["CHALLENGER", "GRANDMASTER", "MASTER"].includes(tier)) {
+    return `${name} ${rank}`;
+  }
+  return name;
+}
+
+async function sendDiscordMessage(content: string) {
+  const channelId = process.env.DISCORD_ALERT_CHANNEL_ID;
+  const token = process.env.DISCORD_TOKEN;
+  if (!channelId || !token) return;
+
+  await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ content }),
+  });
+}
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
@@ -16,8 +61,66 @@ export async function GET(req: NextRequest) {
   const sorted = [...players].sort(compareRank);
   const top1 = sorted.find((p) => p.ranked && p.score > 0);
 
+  // --- Demotion detection ---
+  const simulateId = req.nextUrl.searchParams.get("simulate");
+  const previousRanks = (await kv.get<StoredRanks>(KV_RANKS_KEY)) ?? {};
+
+  // Simulate: override previous rank for a player to one tier above their current
+  if (simulateId) {
+    const tierOrder: Tier[] = [
+      "IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM",
+      "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER",
+    ];
+    const target = players.find((p) => p.riotId === simulateId);
+    if (target?.ranked) {
+      const idx = tierOrder.indexOf(target.ranked.tier);
+      if (idx < tierOrder.length - 1) {
+        previousRanks[simulateId] = { tier: tierOrder[idx + 1], rank: null };
+      }
+    }
+  }
+
+  const currentRanks: StoredRanks = {};
+
+  for (const player of players) {
+    if (player.ranked) {
+      currentRanks[player.riotId] = {
+        tier: player.ranked.tier,
+        rank: player.ranked.rank ?? null,
+      };
+    }
+  }
+
+  await kv.set(KV_RANKS_KEY, currentRanks);
+
+  const demotions: string[] = [];
+
+  if (Object.keys(previousRanks).length > 0) {
+    for (const player of players) {
+      if (!player.ranked) continue;
+      const prev = previousRanks[player.riotId];
+      if (!prev) continue;
+
+      const prevWeight = TIER_WEIGHTS[prev.tier] ?? 0;
+      const currWeight = TIER_WEIGHTS[player.ranked.tier] ?? 0;
+
+      if (currWeight < prevWeight) {
+        const fromLabel = formatTier(prev.tier, prev.rank);
+        const toLabel = formatTier(player.ranked.tier, player.ranked.rank ?? null);
+        demotions.push(`${player.gameName}: ${fromLabel} → ${toLabel}`);
+
+        const roleId = process.env.DISCORD_LOL_ROLE_ID;
+        const mention = roleId ? `<@&${roleId}> ` : "";
+        await sendDiscordMessage(
+          `${mention}📉 **${player.gameName}** bajó de **${fromLabel}** a **${toLabel}** 💀`
+        );
+      }
+    }
+  }
+
+  // --- Top 1 detection ---
   if (!top1) {
-    return NextResponse.json({ message: "No hay jugadores rankeados" });
+    return NextResponse.json({ message: "No hay jugadores rankeados", demotions });
   }
 
   const currentId = top1.riotId;
@@ -25,16 +128,14 @@ export async function GET(req: NextRequest) {
 
   await kv.set(KV_KEY, currentId);
 
-  // Primera corrida: guardar sin alertar
   if (!previousId) {
-    return NextResponse.json({ message: "Primera corrida - guardado", top1: currentId });
+    return NextResponse.json({ message: "Primera corrida - guardado", top1: currentId, demotions });
   }
 
   if (previousId === currentId) {
-    return NextResponse.json({ message: "Sin cambio", top1: currentId });
+    return NextResponse.json({ message: "Sin cambio", top1: currentId, demotions });
   }
 
-  // Nuevo top 1 — mandar alerta
   const channelId = process.env.DISCORD_ALERT_CHANNEL_ID;
   const roleId = process.env.DISCORD_LOL_ROLE_ID;
   const token = process.env.DISCORD_TOKEN;
@@ -62,5 +163,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: err }, { status: 500 });
   }
 
-  return NextResponse.json({ message: "Alerta enviada", anterior: previousId, nuevo: currentId });
+  return NextResponse.json({ message: "Alerta enviada", anterior: previousId, nuevo: currentId, demotions });
 }

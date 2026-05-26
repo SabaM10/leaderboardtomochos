@@ -1,6 +1,6 @@
 import { Tier, Division, Player } from "@/lib/types";
 
-const TIER_WEIGHTS: Record<Tier, number> = {
+export const TIER_WEIGHTS: Record<Tier, number> = {
   CHALLENGER: 10,
   GRANDMASTER: 9,
   MASTER: 8,
