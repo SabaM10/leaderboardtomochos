@@ -173,9 +173,8 @@ export async function GET(req: NextRequest) {
   const currentId = top1.riotId;
   const previousId = await kv.get<string>(KV_KEY);
 
-  await kv.set(KV_KEY, currentId);
-
   if (!previousId) {
+    await kv.set(KV_KEY, currentId);
     return NextResponse.json({ message: "Primera corrida - guardado", top1: currentId, demotions, promotions });
   }
 
@@ -209,6 +208,10 @@ export async function GET(req: NextRequest) {
     const err = await res.json();
     return NextResponse.json({ error: err }, { status: 500 });
   }
+
+  // Solo actualizamos el KV después de que la alerta se envió exitosamente,
+  // para que si falla, el próximo cron pueda reintentarlo.
+  await kv.set(KV_KEY, currentId);
 
   return NextResponse.json({ message: "Alerta enviada", anterior: previousId, nuevo: currentId, demotions, promotions });
 }

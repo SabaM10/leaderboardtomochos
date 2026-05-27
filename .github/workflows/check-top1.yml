@@ -11,4 +11,12 @@ jobs:
     steps:
       - name: Llamar al endpoint
         run: |
-          curl -sf "${{ secrets.VERCEL_APP_URL }}/api/cron/check-top1?secret=${{ secrets.CRON_SECRET }}"
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "${{ secrets.VERCEL_APP_URL }}/api/cron/check-top1?secret=${{ secrets.CRON_SECRET }}")
+          body=$(echo "$response" | sed '/HTTP_STATUS:/d')
+          status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          echo "Response: $body"
+          echo "HTTP Status: $status"
+          if [ "$status" != "200" ]; then
+            echo "Error: endpoint returned HTTP $status"
+            exit 1
+          fi
