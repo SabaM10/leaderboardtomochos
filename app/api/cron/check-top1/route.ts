@@ -54,14 +54,21 @@ async function sendDiscordMessage(content: string) {
   const token = process.env.DISCORD_TOKEN;
   if (!channelId || !token) return;
 
-  await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bot ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ content }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bot ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function GET(req: NextRequest) {
