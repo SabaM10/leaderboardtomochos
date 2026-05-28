@@ -199,6 +199,7 @@ export async function GET(req: NextRequest) {
   sorted.forEach((p, i) => { currentPositions[p.riotId] = i; });
 
   const positionChanges: Record<string, number> = {};
+  const overtakes: string[] = [];
 
   if (Object.keys(resolvedPreviousPositions).length > 0) {
     const prevPosByPos: Record<number, string> = {};
@@ -229,12 +230,16 @@ export async function GET(req: NextRequest) {
           const nameList = rest.length > 0
             ? `**${rest.join("**, **")}** y **${last}**`
             : `**${last}**`;
-          await sendDiscordMessage(
-            `${mention}🔺 **${player.gameName}** superó a ${nameList} en el ranking!`
-          );
+          const msg = `${mention}🔺 **${player.gameName}** superó a ${nameList} en el ranking!`;
+          overtakes.push(`${player.gameName} +${delta}: ${overtakenNames.join(", ")}`);
+          await sendDiscordMessage(msg);
+        } else {
+          overtakes.push(`${player.gameName} +${delta} (no se mandó alerta: solo ${overtakenNames.length} nombres encontrados)`);
         }
       }
     }
+  } else {
+    overtakes.push("sin posiciones previas en KV");
   }
 
   await Promise.all([
@@ -244,7 +249,7 @@ export async function GET(req: NextRequest) {
 
   // --- Top 1 detection ---
   if (!top1) {
-    return NextResponse.json({ message: "No hay jugadores rankeados", demotions, promotions });
+    return NextResponse.json({ message: "No hay jugadores rankeados", demotions, promotions, overtakes });
   }
 
   const currentId = top1.riotId;
@@ -252,11 +257,11 @@ export async function GET(req: NextRequest) {
 
   if (!previousId) {
     await kv.set(KV_KEY, currentId);
-    return NextResponse.json({ message: "Primera corrida - guardado", top1: currentId, demotions, promotions });
+    return NextResponse.json({ message: "Primera corrida - guardado", top1: currentId, demotions, promotions, overtakes });
   }
 
   if (previousId === currentId) {
-    return NextResponse.json({ message: "Sin cambio", top1: currentId, demotions, promotions });
+    return NextResponse.json({ message: "Sin cambio", top1: currentId, demotions, promotions, overtakes });
   }
 
   const channelId = process.env.DISCORD_ALERT_CHANNEL_ID;
