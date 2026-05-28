@@ -39,9 +39,13 @@ async function fetchLgSnapshots(
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     },
   });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    console.error(`[LG] ${url} → ${res.status}`);
+    return [];
+  }
   const html = await res.text();
 
   const graphMatch = html.match(/const graphData = (\[[\s\S]*?\]);/);
@@ -101,7 +105,7 @@ export async function GET(req: NextRequest) {
       }
 
       if (lgSnapshots.length === 0) {
-        results[riotId] = { inserted: 0, total: 0, error: "No snapshots from leagueofgraphs (blocked or player not found)" };
+        results[riotId] = { inserted: 0, total: 0, error: `No snapshots from leagueofgraphs — check server logs for HTTP status` };
         continue;
       }
 
