@@ -267,11 +267,13 @@ function PlayerCard({
   player,
   pos,
   ddVersion,
+  positionDelta,
   onClick,
 }: {
   player: Player;
   pos: number;
   ddVersion: string;
+  positionDelta: number;
   onClick: () => void;
 }) {
   const ranked = player.ranked;
@@ -290,7 +292,12 @@ function PlayerCard({
       <div className="px-4 py-4 flex flex-col gap-3">
         {/* top row */}
         <div className="flex items-center gap-3">
-          <span className={`text-lg font-black tabular-nums w-6 shrink-0 ${numColor}`}>{pos + 1}</span>
+          <div className="flex items-center gap-1 shrink-0 w-7">
+            <span className={`text-lg font-black tabular-nums ${numColor}`}>{pos + 1}</span>
+            {positionDelta > 0 && (
+              <span className="text-emerald-400 text-[10px] leading-none" title={`Subió ${positionDelta} posición${positionDelta > 1 ? "es" : ""}`}>▲</span>
+            )}
+          </div>
           <ProfileIcon iconId={player.profileIconId} ddVersion={ddVersion} size={36} gameName={player.gameName} tagLine={player.tagLine} />
           {ranked && <TierIcon tier={ranked.tier} size={36} />}
           <div className="flex-1 min-w-0">
@@ -350,7 +357,7 @@ function PlayerCard({
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-export default function LeaderboardTable({ players, ddVersion }: { players: Player[]; ddVersion: string }) {
+export default function LeaderboardTable({ players, ddVersion, positionChanges = {} }: { players: Player[]; ddVersion: string; positionChanges?: Record<string, number> }) {
   const [selected, setSelected] = useState<Player | null>(null);
 
   return (
@@ -363,6 +370,7 @@ export default function LeaderboardTable({ players, ddVersion }: { players: Play
             player={player}
             pos={i}
             ddVersion={ddVersion}
+            positionDelta={positionChanges[player.riotId] ?? 0}
             onClick={() => setSelected(player)}
           />
         ))}
@@ -400,7 +408,12 @@ export default function LeaderboardTable({ players, ddVersion }: { players: Play
                     onClick={() => setSelected(isSelected ? null : player)}
                   >
                     <td className="px-4 py-5">
-                      <span className={`text-sm font-black tabular-nums ${numColor}`}>{i + 1}</span>
+                      <div className="flex items-center gap-1">
+                        <span className={`text-sm font-black tabular-nums ${numColor}`}>{i + 1}</span>
+                        {(positionChanges[player.riotId] ?? 0) > 0 && (
+                          <span className="text-emerald-400 text-[10px] leading-none" title={`Subió ${positionChanges[player.riotId]} posición${positionChanges[player.riotId] > 1 ? "es" : ""}`}>▲</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-5">
                       <div className="flex items-center gap-3">

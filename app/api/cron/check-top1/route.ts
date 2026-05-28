@@ -8,6 +8,8 @@ import { Tier, Division } from "@/lib/types";
 const KV_KEY = "leaderboard:top1";
 const KV_RANKS_KEY = "leaderboard:player-ranks";
 const KV_LP_PREFIX = "leaderboard:lp-snapshots";
+const KV_POSITIONS_KEY = "leaderboard:player-positions";
+const KV_POSITION_CHANGES_KEY = "leaderboard:position-changes";
 const LP_SNAPSHOT_MAX = 5000;
 
 function toDisplayLp(tier: string, rank: string | null, lp: number): number {
@@ -79,7 +81,12 @@ export async function GET(req: NextRequest) {
 
   const simulateDemotion = req.nextUrl.searchParams.get("simulate");
   const simulatePromotion = req.nextUrl.searchParams.get("simulatepro");
-  const previousRanks = (await kv.get<StoredRanks>(KV_RANKS_KEY)) ?? {};
+  const [previousRanksRaw, previousPositions] = await Promise.all([
+    kv.get<StoredRanks>(KV_RANKS_KEY),
+    kv.get<Record<string, number>>(KV_POSITIONS_KEY),
+  ]);
+  const previousRanks: StoredRanks = previousRanksRaw ?? {};
+  const resolvedPreviousPositions = previousPositions ?? {};
 
   // Simulate demotion: set previous tier one above current
   if (simulateDemotion) {
@@ -164,6 +171,54 @@ export async function GET(req: NextRequest) {
       }
     }
   }
+
+  // --- Position tracking + overtake alerts ---
+  const currentPositions: Record<string, number> = {};
+  sorted.forEach((p, i) => { currentPositions[p.riotId] = i; });
+
+  const positionChanges: Record<string, number> = {};
+
+  if (Object.keys(resolvedPreviousPositions).length > 0) {
+    const prevPosByPos: Record<number, string> = {};
+    for (const [riotId, pos] of Object.entries(resolvedPreviousPositions)) {
+      prevPosByPos[pos] = riotId;
+    }
+
+    for (const player of sorted) {
+      const prev = resolvedPreviousPositions[player.riotId];
+      const curr = currentPositions[player.riotId];
+      if (prev === undefined) continue;
+      const delta = prev - curr;
+      positionChanges[player.riotId] = delta;
+
+      if (delta >= 2) {
+        const overtakenNames: string[] = [];
+        for (let pos = curr; pos < prev; pos++) {
+          const overtakenId = prevPosByPos[pos];
+          if (overtakenId && overtakenId !== player.riotId) {
+            const overtakenPlayer = players.find((p) => p.riotId === overtakenId);
+            if (overtakenPlayer) overtakenNames.push(overtakenPlayer.gameName);
+          }
+        }
+        if (overtakenNames.length >= 2) {
+          const mention = process.env.DISCORD_LOL_ROLE_ID ? `<@&${process.env.DISCORD_LOL_ROLE_ID}> ` : "";
+          const last = overtakenNames.at(-1)!;
+          const rest = overtakenNames.slice(0, -1);
+          const nameList = rest.length > 0
+            ? `**${rest.join("**, **")}** y **${last}**`
+            : `**${last}**`;
+          await sendDiscordMessage(
+            `${mention}🔺 **${player.gameName}** superó a ${nameList} en el ranking!`
+          );
+        }
+      }
+    }
+  }
+
+  await Promise.all([
+    kv.set(KV_POSITIONS_KEY, currentPositions),
+    kv.set(KV_POSITION_CHANGES_KEY, positionChanges),
+  ]);
 
   // --- Top 1 detection ---
   if (!top1) {

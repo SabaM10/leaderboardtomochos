@@ -298,6 +298,8 @@ function LpChart({ snapshots }: { snapshots: LpSnapshot[] }) {
 
 type Range = "7D" | "1M" | "All";
 
+const LP_GRAPH_MAINTENANCE = true;
+
 export default function LpGraph({ player }: { player: Player }) {
   const [snapshots, setSnapshots] = useState<LpSnapshot[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -331,6 +333,16 @@ export default function LpGraph({ player }: { player: Player }) {
 
   if (!player.ranked) {
     return <p className="text-zinc-600 text-sm text-center py-8">Sin datos de ranked</p>;
+  }
+
+  if (LP_GRAPH_MAINTENANCE) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-2">
+        <span className="text-2xl">🔧</span>
+        <p className="text-zinc-400 text-sm font-medium">Historial LP en mantenimiento</p>
+        <p className="text-zinc-600 text-xs">Próximamente disponible</p>
+      </div>
+    );
   }
 
   return (

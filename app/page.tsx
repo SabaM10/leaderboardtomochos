@@ -3,6 +3,7 @@ import { fetchAllPlayers } from "@/lib/riot";
 import { compareRank } from "@/lib/ranking";
 import LeaderboardTable from "@/components/leaderboard-table";
 import AutoRefresh from "@/components/auto-refresh";
+import { kv } from "@vercel/kv";
 
 async function getDDragonVersion(): Promise<string> {
   try {
@@ -17,9 +18,10 @@ async function getDDragonVersion(): Promise<string> {
 }
 
 export default async function Home() {
-  const [players, ddVersion] = await Promise.all([
+  const [players, ddVersion, positionChanges] = await Promise.all([
     fetchAllPlayers(FRIENDS),
     getDDragonVersion(),
+    kv.get<Record<string, number>>("leaderboard:position-changes").catch(() => null),
   ]);
   players.sort(compareRank);
 
@@ -74,7 +76,7 @@ export default async function Home() {
           </div>
         </div>
 
-        <LeaderboardTable players={players} ddVersion={ddVersion} />
+        <LeaderboardTable players={players} ddVersion={ddVersion} positionChanges={positionChanges ?? {}} />
 
         <p className="text-center text-zinc-700 text-xs">
           Datos obtenidos de la Riot API · No afiliado con Riot Games
