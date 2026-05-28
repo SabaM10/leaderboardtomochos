@@ -8,7 +8,7 @@ import { Tier, Division } from "@/lib/types";
 const KV_KEY = "leaderboard:top1";
 const KV_RANKS_KEY = "leaderboard:player-ranks";
 const KV_LP_PREFIX = "leaderboard:lp-snapshots";
-const LP_SNAPSHOT_MAX = 2016; // ~14 days at 10-min intervals
+const LP_SNAPSHOT_MAX = 5000;
 
 function toDisplayLp(tier: string, rank: string | null, lp: number): number {
   const tierBase: Record<string, number> = {
