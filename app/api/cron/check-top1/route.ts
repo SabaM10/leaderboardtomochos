@@ -81,12 +81,13 @@ export async function GET(req: NextRequest) {
 
   const simulateDemotion = req.nextUrl.searchParams.get("simulate");
   const simulatePromotion = req.nextUrl.searchParams.get("simulatepro");
+  const simulateOvertake = req.nextUrl.searchParams.get("simulateovertake");
   const [previousRanksRaw, previousPositions] = await Promise.all([
     kv.get<StoredRanks>(KV_RANKS_KEY),
     kv.get<Record<string, number>>(KV_POSITIONS_KEY),
   ]);
   const previousRanks: StoredRanks = previousRanksRaw ?? {};
-  const resolvedPreviousPositions = previousPositions ?? {};
+  const resolvedPreviousPositions: Record<string, number> = previousPositions ?? {};
 
   // Simulate demotion: set previous tier one above current
   if (simulateDemotion) {
@@ -107,6 +108,20 @@ export async function GET(req: NextRequest) {
       if (idx > 0) {
         previousRanks[simulatePromotion] = { tier: tierOrder[idx - 1], rank: "I" };
       }
+    }
+  }
+
+  // Simulate overtake: fake previous positions so the target appears to have climbed 2+ spots
+  if (simulateOvertake) {
+    const targetIdx = sorted.findIndex((p) => p.riotId === simulateOvertake);
+    if (targetIdx !== -1) {
+      const fakeFrom = targetIdx + 2;
+      // Assign every current player their current position as "previous", then move target back
+      sorted.forEach((p, i) => { resolvedPreviousPositions[p.riotId] = i; });
+      resolvedPreviousPositions[simulateOvertake] = fakeFrom;
+      // Shift the two overtaken players up by one in the fake previous so positions are consistent
+      if (sorted[targetIdx + 1]) resolvedPreviousPositions[sorted[targetIdx + 1].riotId] = targetIdx;
+      if (sorted[targetIdx + 2]) resolvedPreviousPositions[sorted[targetIdx + 2].riotId] = targetIdx + 1;
     }
   }
 
