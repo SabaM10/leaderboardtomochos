@@ -47,8 +47,7 @@ async function fetchLgSnapshots(
     },
   });
   if (!res.ok) {
-    console.error(`[LG] ${url} → ${res.status}`);
-    return [];
+    throw new Error(`LG HTTP ${res.status} for ${url}`);
   }
   const html = await res.text();
 
