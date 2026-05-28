@@ -24,8 +24,12 @@ function buildLgUrl(gameName: string, tagLine: string): string {
 
 async function getPuuid(gameName: string, tagLine: string): Promise<string | null> {
   const url = `https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
+  console.log(`[PUUID] fetching ${gameName}#${tagLine}, key present: ${!!RIOT_KEY}`);
   const res = await fetch(url, { headers: { "X-Riot-Token": RIOT_KEY } });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.error(`[PUUID] ${gameName}#${tagLine} → ${res.status}`);
+    return null;
+  }
   const data = await res.json();
   return data.puuid ?? null;
 }
