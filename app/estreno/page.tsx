@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import EstrenoCountdown, { ESTRENO_DATE, YOUTUBE_ID } from "@/components/estreno-countdown";
+import EstrenoCountdown from "@/components/estreno-countdown";
+import { ESTRENO_DATE, YOUTUBE_ID } from "@/config/estreno";
 
 export const metadata: Metadata = {
   title: "Estreno Oficial · LA UNIÓN HACE LA FUERZA",

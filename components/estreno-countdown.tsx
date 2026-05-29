@@ -2,12 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-
-// ── CONFIGURACIÓN ──────────────────────────────────────────────────────────────
-// Cambia estos dos valores cuando los tengas:
-export const ESTRENO_DATE = new Date("2026-06-15T21:00:00-03:00"); // fecha/hora de estreno (ART)
-export const YOUTUBE_ID = ""; // ej: "dQw4w9WgXcQ" (solo el ID, no la URL completa)
-// ──────────────────────────────────────────────────────────────────────────────
+import { ESTRENO_DATE, YOUTUBE_ID } from "@/config/estreno";
 
 interface TimeLeft {
   days: number;
