@@ -143,7 +143,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  await kv.set(KV_RANKS_KEY, currentRanks);
+  // Merge instead of overwrite: players that errored this run keep their last
+  // known rank so the next successful run can still detect tier changes.
+  const mergedRanks: StoredRanks = { ...previousRanks, ...currentRanks };
+  await kv.set(KV_RANKS_KEY, mergedRanks);
 
   // Save LP snapshots for accurate graph history
   const now = Date.now();

@@ -10,4 +10,5 @@ export const FRIENDS: FriendConfig[] = [
   { gameName: "Growtik", tagLine: "ADO" },
   { gameName: "EmiIiano", tagLine: "LAS" },
   { gameName: "juanceto912", tagLine: "0411" },
+  { gameName: "Quién como Dios", tagLine: "0824" },
 ];
