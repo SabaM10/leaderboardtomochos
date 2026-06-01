@@ -53,6 +53,7 @@ async function getLiveGame(puuid: string): Promise<LiveGame | null> {
   if (res.status === 404) return null;
   if (!res.ok) return null;
   const data = await res.json();
+  console.log(`[LiveGame] queueId=${data.gameQueueConfigId} gameMode=${data.gameMode} gameType=${data.gameType}`);
   if (data.gameQueueConfigId !== 420) return null;
   return { gameStartTime: data.gameStartTime, gameMode: data.gameMode };
 }
