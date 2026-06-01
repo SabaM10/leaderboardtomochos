@@ -54,6 +54,11 @@ export interface MatchResult {
   assists: number;
   cs: number;
   durationSecs: number;
+  items: number[];          // slots 0-5 (main) + slot 6 (trinket)
+  spell1Id: number;
+  spell2Id: number;
+  killParticipation?: number; // 0.0–1.0
+  teamPosition?: string;      // TOP | JUNGLE | MIDDLE | BOTTOM | UTILITY
 }
 
 export interface Player {

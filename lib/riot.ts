@@ -53,6 +53,7 @@ async function getLiveGame(puuid: string): Promise<LiveGame | null> {
   if (res.status === 404) return null;
   if (!res.ok) return null;
   const data = await res.json();
+  if (data.gameQueueConfigId !== 420) return null;
   return { gameStartTime: data.gameStartTime, gameMode: data.gameMode };
 }
 
@@ -123,6 +124,11 @@ async function getLastMatches(puuid: string): Promise<MatchResult[]> {
       assists: p.assists as number,
       cs: (p.totalMinionsKilled + p.neutralMinionsKilled) as number,
       durationSecs: data.info.gameDuration as number,
+      items: [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5, p.item6] as number[],
+      spell1Id: p.summoner1Id as number,
+      spell2Id: p.summoner2Id as number,
+      killParticipation: (p as { challenges?: { killParticipation?: number } }).challenges?.killParticipation,
+      teamPosition: (p.teamPosition as string) || undefined,
     });
   }
 

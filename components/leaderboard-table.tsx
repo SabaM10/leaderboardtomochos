@@ -129,6 +129,28 @@ function ProfileIcon({
 
 // ─── Match history modal ─────────────────────────────────────────────────────
 
+const SUMMONER_SPELL_NAMES: Record<number, string> = {
+  1:  "SummonerBoost",
+  3:  "SummonerExhaust",
+  4:  "SummonerFlash",
+  6:  "SummonerHaste",
+  7:  "SummonerHeal",
+  11: "SummonerSmite",
+  12: "SummonerTeleport",
+  13: "SummonerMana",
+  14: "SummonerDot",
+  21: "SummonerBarrier",
+  32: "SummonerSnowball",
+};
+
+const POSITION_LABELS: Record<string, string> = {
+  TOP:     "Top",
+  JUNGLE:  "Jungla",
+  MIDDLE:  "Mid",
+  BOTTOM:  "Bot",
+  UTILITY: "Supp",
+};
+
 function kdaRatio(kills: number, deaths: number, assists: number): string {
   if (deaths === 0) return "Perfect";
   return ((kills + assists) / deaths).toFixed(2);
@@ -140,44 +162,119 @@ function fmtDuration(secs: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function ItemSlot({ itemId, ddVersion }: { itemId: number; ddVersion: string }) {
+  if (!itemId) return <div className="w-[22px] h-[22px] rounded bg-black/40 border border-white/5 flex-shrink-0" />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/item/${itemId}.png`}
+      alt=""
+      width={22}
+      height={22}
+      className="rounded object-cover flex-shrink-0"
+    />
+  );
+}
+
+function SpellSlot({ spellId, ddVersion }: { spellId: number; ddVersion: string }) {
+  const name = SUMMONER_SPELL_NAMES[spellId];
+  if (!name) return <div className="w-[18px] h-[18px] rounded bg-black/40 flex-shrink-0" />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/spell/${name}.png`}
+      alt=""
+      width={18}
+      height={18}
+      className="rounded object-cover flex-shrink-0"
+    />
+  );
+}
+
 function MatchRow({ match, ddVersion }: { match: MatchResult; ddVersion: string }) {
   const kda = kdaRatio(match.kills, match.deaths, match.assists);
   const kdaNum = match.deaths === 0 ? 99 : (match.kills + match.assists) / match.deaths;
-  const kdaColor = kdaNum >= 4 ? "text-amber-400" : kdaNum >= 2.5 ? "text-emerald-400" : "text-zinc-400";
+  const kdaColor = kdaNum >= 4 ? "text-amber-400" : kdaNum >= 2.5 ? "text-blue-400" : "text-zinc-400";
   const csPerMin = (match.cs / (match.durationSecs / 60)).toFixed(1);
+  const mainItems = match.items?.slice(0, 6) ?? [];
+  const trinket = match.items?.[6] ?? 0;
+  const kpPct = match.killParticipation != null ? Math.round(match.killParticipation * 100) : null;
+  const posLabel = match.teamPosition ? (POSITION_LABELS[match.teamPosition] ?? match.teamPosition) : null;
 
   return (
-    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border ${match.win ? "bg-emerald-950/40 border-emerald-800/25" : "bg-red-950/35 border-red-900/25"}`}>
-      {/* Champion icon */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/champion/${match.championName}.png`}
-        alt={match.championName}
-        width={40}
-        height={40}
-        className="rounded-lg object-cover flex-shrink-0"
-      />
+    <div className={`flex items-stretch rounded-xl overflow-hidden border ${
+      match.win ? "border-blue-800/30 bg-blue-950/25" : "border-red-900/30 bg-red-950/20"
+    }`}>
+      {/* Left accent */}
+      <div className={`w-1 flex-shrink-0 ${match.win ? "bg-blue-500" : "bg-red-600"}`} />
 
-      {/* Champion + result */}
-      <div className="w-24 shrink-0">
-        <div className={`text-xs font-bold ${match.win ? "text-emerald-400" : "text-red-400"}`}>
-          {match.win ? "Victoria" : "Derrota"}
+      <div className="flex items-center gap-2 px-2.5 py-2 flex-1 min-w-0">
+        {/* Champion + spells */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/champion/${match.championName}.png`}
+            alt={match.championName}
+            width={42}
+            height={42}
+            className="rounded-full object-cover"
+          />
+          <div className="flex flex-col gap-0.5">
+            <SpellSlot spellId={match.spell1Id} ddVersion={ddVersion} />
+            <SpellSlot spellId={match.spell2Id} ddVersion={ddVersion} />
+          </div>
         </div>
-        <div className="text-zinc-400 text-xs truncate">{match.championName}</div>
-      </div>
 
-      {/* KDA */}
-      <div className="flex-1">
-        <div className="text-zinc-200 text-sm font-mono font-semibold">
-          {match.kills} / <span className="text-red-400">{match.deaths}</span> / {match.assists}
+        {/* Result + name + duration */}
+        <div className="w-[58px] shrink-0">
+          <div className={`text-[11px] font-bold leading-tight ${match.win ? "text-blue-400" : "text-red-400"}`}>
+            {match.win ? "Victoria" : "Derrota"}
+          </div>
+          <div className="text-zinc-500 text-[10px] truncate leading-tight">{match.championName}</div>
+          <div className="text-zinc-600 text-[10px] leading-tight">{fmtDuration(match.durationSecs)}</div>
         </div>
-        <div className={`text-xs font-mono ${kdaColor}`}>{kda} KDA</div>
-      </div>
 
-      {/* CS + duration */}
-      <div className="text-right shrink-0">
-        <div className="text-zinc-300 text-xs font-mono">{match.cs} CS <span className="text-zinc-600">({csPerMin}/m)</span></div>
-        <div className="text-zinc-600 text-xs">{fmtDuration(match.durationSecs)}</div>
+        {/* Items: 3+3 + trinket */}
+        <div className="flex flex-col gap-0.5 shrink-0">
+          <div className="flex gap-0.5">
+            {(mainItems.length ? mainItems : Array(6).fill(0)).slice(0, 3).map((id: number, i: number) => (
+              <ItemSlot key={i} itemId={id} ddVersion={ddVersion} />
+            ))}
+          </div>
+          <div className="flex gap-0.5">
+            {(mainItems.length ? mainItems : Array(6).fill(0)).slice(3, 6).map((id: number, i: number) => (
+              <ItemSlot key={i + 3} itemId={id} ddVersion={ddVersion} />
+            ))}
+            <ItemSlot itemId={trinket} ddVersion={ddVersion} />
+          </div>
+        </div>
+
+        {/* KDA */}
+        <div className="flex-1 text-center min-w-0 px-1">
+          <div className="text-zinc-100 text-[13px] font-bold font-mono leading-tight whitespace-nowrap">
+            {match.kills}{" "}
+            <span className="text-zinc-500 font-normal">/</span>{" "}
+            <span className="text-red-400">{match.deaths}</span>{" "}
+            <span className="text-zinc-500 font-normal">/</span>{" "}
+            {match.assists}
+          </div>
+          <div className={`text-[10px] font-mono mt-0.5 ${kdaColor}`}>{kda} KDA</div>
+        </div>
+
+        {/* Stats */}
+        <div className="text-right shrink-0">
+          <div className="text-zinc-300 text-[11px] font-mono whitespace-nowrap">
+            CS {match.cs} <span className="text-zinc-600">({csPerMin}/m)</span>
+          </div>
+          <div className="flex items-center justify-end gap-1.5 mt-0.5">
+            {kpPct !== null && (
+              <span className="text-zinc-500 text-[10px]">P/A {kpPct}%</span>
+            )}
+            {posLabel && (
+              <span className="text-zinc-500 text-[10px]">{posLabel}</span>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
