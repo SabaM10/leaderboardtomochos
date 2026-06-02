@@ -113,6 +113,8 @@ async function getLastMatches(puuid: string): Promise<MatchResult[]> {
     if (!res.ok) continue;
     const data = await res.json();
 
+    if (data.info.gameEndReason === "Abort_Remake") continue;
+
     const p = data.info.participants.find(
       (x: { puuid: string }) => x.puuid === puuid
     );
