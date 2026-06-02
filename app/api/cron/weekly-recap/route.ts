@@ -3,24 +3,17 @@ import { kv } from "@vercel/kv";
 import { fetchAllPlayers } from "@/lib/riot";
 import { FRIENDS } from "@/config/friends";
 import { compareRank } from "@/lib/ranking";
+import { toDisplayLp } from "@/lib/lp";
+import { TierCutoffs } from "@/lib/types";
 
 const KV_WEEKLY_BASELINE = "leaderboard:weekly-baseline";
+const KV_CUTOFFS_KEY = "leaderboard:tier-cutoffs";
 
 interface WeeklyBaseline {
   score: number;
   wins: number;
   losses: number;
   t: number;
-}
-
-function toDisplayLp(tier: string, rank: string | null, lp: number): number {
-  const tierBase: Record<string, number> = {
-    IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600,
-    EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2900, CHALLENGER: 3000,
-  };
-  const rankAdd: Record<string, number> = { IV: 0, III: 100, II: 200, I: 300 };
-  const noDivision = ["MASTER", "GRANDMASTER", "CHALLENGER"].includes(tier);
-  return (tierBase[tier] ?? 0) + (!noDivision && rank ? (rankAdd[rank] ?? 0) : 0) + Math.min(lp, 100);
 }
 
 function scoreToLabel(score: number): string {
@@ -70,7 +63,10 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const players = await fetchAllPlayers(FRIENDS);
+  const [players, cutoffs] = await Promise.all([
+    fetchAllPlayers(FRIENDS),
+    kv.get<TierCutoffs>(KV_CUTOFFS_KEY),
+  ]);
   players.sort(compareRank);
 
   const baseline = (await kv.get<Record<string, WeeklyBaseline>>(KV_WEEKLY_BASELINE)) ?? {};
@@ -80,7 +76,7 @@ export async function GET(req: NextRequest) {
   for (const p of players) {
     if (!p.ranked || !p.riotId) continue;
     newBaseline[p.riotId] = {
-      score: toDisplayLp(p.ranked.tier, p.ranked.rank ?? null, p.ranked.leaguePoints),
+      score: toDisplayLp(p.ranked.tier, p.ranked.rank ?? null, p.ranked.leaguePoints, cutoffs ?? undefined),
       wins: p.ranked.wins,
       losses: p.ranked.losses,
       t: now,
@@ -98,7 +94,7 @@ export async function GET(req: NextRequest) {
     .filter((p) => p.ranked && baseline[p.riotId])
     .map((p) => {
       const base = baseline[p.riotId];
-      const currentScore = toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints);
+      const currentScore = toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints, cutoffs ?? undefined);
       const lpDelta = currentScore - base.score;
       const gamesPlayed = (p.ranked!.wins + p.ranked!.losses) - (base.wins + base.losses);
       return { gameName: p.gameName, lpDelta, gamesPlayed, currentScore, riotId: p.riotId };
@@ -119,7 +115,7 @@ export async function GET(req: NextRequest) {
         const s = stats.find((x) => x.riotId === p.riotId);
         const delta = s?.lpDelta ?? 0;
         const arrow = delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : "→";
-        const label = scoreToLabel(toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints));
+        const label = scoreToLabel(toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints, cutoffs ?? undefined));
         const games = s?.gamesPlayed ?? 0;
         return `${i + 1}. **${p.gameName}** · ${label} · ${arrow} LP · ${games} partidas`;
       }),

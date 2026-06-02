@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
-import { LpSnapshot, Tier, Division } from "@/lib/types";
+import { LpSnapshot, Tier, TierCutoffs } from "@/lib/types";
+import { toDisplayLp } from "@/lib/lp";
 
+const KV_CUTOFFS_KEY = "leaderboard:tier-cutoffs";
 const RIOT_KEY = process.env.RIOT_API_KEY!;
 const hdrs = { "X-Riot-Token": RIOT_KEY };
 
@@ -15,44 +17,14 @@ async function riotFetch(url: string): Promise<Response> {
   return fetch(url, { headers: hdrs, next: { revalidate: 3600 } });
 }
 
-export function toDisplayLp(tier: string, rank: string | null, lp: number): number {
-  const tierBase: Record<string, number> = {
-    IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600,
-    EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2900, CHALLENGER: 3000,
-  };
-  const rankAdd: Record<string, number> = { IV: 0, III: 100, II: 200, I: 300 };
-  const noDivision = ["MASTER", "GRANDMASTER", "CHALLENGER"].includes(tier);
-  return (tierBase[tier] ?? 0) + (!noDivision && rank ? (rankAdd[rank] ?? 0) : 0) + Math.min(lp, 100);
-}
-
-// Inverse of toDisplayLp
-function fromDisplayLp(score: number): { tier: Tier; rank: Division | null; lp: number } {
-  const tiers: { tier: Tier; base: number; noDivision: boolean }[] = [
-    { tier: "CHALLENGER", base: 3000, noDivision: true },
-    { tier: "GRANDMASTER", base: 2900, noDivision: true },
-    { tier: "MASTER", base: 2800, noDivision: true },
-    { tier: "DIAMOND", base: 2400, noDivision: false },
-    { tier: "EMERALD", base: 2000, noDivision: false },
-    { tier: "PLATINUM", base: 1600, noDivision: false },
-    { tier: "GOLD", base: 1200, noDivision: false },
-    { tier: "SILVER", base: 800, noDivision: false },
-    { tier: "BRONZE", base: 400, noDivision: false },
-    { tier: "IRON", base: 0, noDivision: false },
-  ];
-  const clamped = Math.max(0, score);
-  for (const { tier, base, noDivision } of tiers) {
-    if (clamped >= base) {
-      if (noDivision) return { tier, rank: null, lp: Math.min(clamped - base, 999) };
-      const rem = clamped - base;
-      const divIdx = Math.min(Math.floor(rem / 100), 3);
-      return { tier, rank: (["IV", "III", "II", "I"] as Division[])[divIdx], lp: rem % 100 };
-    }
+function downsampleToHourly(snapshots: LpSnapshot[]): LpSnapshot[] {
+  const HOUR_MS = 60 * 60 * 1000;
+  const hourMap = new Map<number, LpSnapshot>();
+  for (const snap of snapshots) {
+    hourMap.set(Math.floor(snap.timestamp / HOUR_MS), snap);
   }
-  return { tier: "IRON", rank: "IV", lp: 0 };
+  return [...hourMap.values()].sort((a, b) => a.timestamp - b.timestamp);
 }
-
-// Keep fromDisplayLp exported for lp-graph.tsx if needed
-export { fromDisplayLp };
 
 export async function GET(
   req: NextRequest,
@@ -60,10 +32,12 @@ export async function GET(
 ) {
   const { puuid } = await params;
   const tier = (req.nextUrl.searchParams.get("tier") ?? "UNRANKED") as Tier;
-  const rank = req.nextUrl.searchParams.get("rank") as Division | null;
+  const rank = req.nextUrl.searchParams.get("rank") as string | null;
   const lp = parseInt(req.nextUrl.searchParams.get("lp") ?? "0");
 
-  if (tier === "UNRANKED") return NextResponse.json([]);
+  if (tier === "UNRANKED") return NextResponse.json({ snapshots: [], cutoffs: null });
+
+  const cutoffs = (await kv.get<TierCutoffs>(KV_CUTOFFS_KEY)) ?? undefined;
 
   // Load real LP snapshots from KV (accurate, collected every 10 min by cron)
   const kvRaw = (await kv.get<{ t: number; s: number }[]>(`leaderboard:lp-snapshots:${puuid}`)) ?? [];
@@ -77,7 +51,7 @@ export async function GET(
   const idsRes = await riotFetch(
     `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=25`
   );
-  if (!idsRes.ok) return NextResponse.json(realSnapshots);
+  if (!idsRes.ok) return NextResponse.json({ snapshots: downsampleToHourly(realSnapshots), cutoffs: cutoffs ?? null });
   const matchIds: string[] = await idsRes.json();
 
   const matchData: { timestamp: number; win: boolean }[] = [];
@@ -108,7 +82,7 @@ export async function GET(
     snapshots.push(...realSnapshots);
   } else {
     // No real snapshots yet — estimate backwards from current LP but cap excursions
-    const currentScore = toDisplayLp(tier, rank, lp);
+    const currentScore = toDisplayLp(tier, rank, lp, cutoffs);
     snapshots.push({ timestamp: Date.now(), score: currentScore, approximate: false });
     let score = currentScore;
     for (const match of matchData) {
@@ -121,5 +95,5 @@ export async function GET(
   }
 
   snapshots.sort((a, b) => a.timestamp - b.timestamp);
-  return NextResponse.json(snapshots);
+  return NextResponse.json({ snapshots: downsampleToHourly(snapshots), cutoffs: cutoffs ?? null });
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { LpSnapshot, Player, Tier, Division } from "@/lib/types";
+import { LpSnapshot, Player, TierCutoffs } from "@/lib/types";
+import { fromDisplayLp } from "@/lib/lp";
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -31,44 +32,6 @@ const CHART_H = 200;
 const PLOT_W = CHART_W - PAD.left - PAD.right;
 const PLOT_H = CHART_H - PAD.top - PAD.bottom;
 
-const RANK_LABEL: Record<Division, string> = { I: "I", II: "II", III: "III", IV: "IV" };
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-function toDisplayLp(tier: string, rank: string | null, lp: number): number {
-  const tierBase: Record<string, number> = {
-    IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600,
-    EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2900, CHALLENGER: 3000,
-  };
-  const rankAdd: Record<string, number> = { IV: 0, III: 100, II: 200, I: 300 };
-  const noDivision = ["MASTER", "GRANDMASTER", "CHALLENGER"].includes(tier);
-  return (tierBase[tier] ?? 0) + (!noDivision && rank ? (rankAdd[rank] ?? 0) : 0) + Math.min(lp, 100);
-}
-
-function fromDisplayLp(score: number): { tier: Tier; rank: Division | null; lp: number } {
-  const tiers = [
-    { tier: "CHALLENGER" as Tier, base: 3000, noDivision: true },
-    { tier: "GRANDMASTER" as Tier, base: 2900, noDivision: true },
-    { tier: "MASTER" as Tier, base: 2800, noDivision: true },
-    { tier: "DIAMOND" as Tier, base: 2400, noDivision: false },
-    { tier: "EMERALD" as Tier, base: 2000, noDivision: false },
-    { tier: "PLATINUM" as Tier, base: 1600, noDivision: false },
-    { tier: "GOLD" as Tier, base: 1200, noDivision: false },
-    { tier: "SILVER" as Tier, base: 800, noDivision: false },
-    { tier: "BRONZE" as Tier, base: 400, noDivision: false },
-    { tier: "IRON" as Tier, base: 0, noDivision: false },
-  ];
-  const clamped = Math.max(0, score);
-  for (const { tier, base, noDivision } of tiers) {
-    if (clamped >= base) {
-      if (noDivision) return { tier, rank: null, lp: Math.min(clamped - base, 999) };
-      const rem = clamped - base;
-      const divIdx = Math.min(Math.floor(rem / 100), 3);
-      return { tier, rank: (["IV", "III", "II", "I"] as Division[])[divIdx], lp: rem % 100 };
-    }
-  }
-  return { tier: "IRON", rank: "IV", lp: 0 };
-}
 
 function fmtDate(ts: number): string {
   return new Date(ts).toLocaleDateString("es", { day: "numeric", month: "short" });
@@ -76,7 +39,7 @@ function fmtDate(ts: number): string {
 
 // ─── chart ───────────────────────────────────────────────────────────────────
 
-function LpChart({ snapshots }: { snapshots: LpSnapshot[] }) {
+function LpChart({ snapshots, cutoffs }: { snapshots: LpSnapshot[]; cutoffs?: TierCutoffs }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [tooltip, setTooltip] = useState<{
     x: number; y: number; snap: LpSnapshot
@@ -266,7 +229,7 @@ function LpChart({ snapshots }: { snapshots: LpSnapshot[] }) {
 
       {/* floating tooltip */}
       {tooltip && (() => {
-        const { tier, rank, lp } = fromDisplayLp(tooltip.snap.score);
+        const { tier, rank, lp } = fromDisplayLp(tooltip.snap.score, cutoffs);
         const noDivision = ["CHALLENGER", "GRANDMASTER", "MASTER"].includes(tier);
         const rankStr = noDivision ? "" : ` ${rank ?? ""}`;
         const tierLabel = (TIER_BANDS.find((b) => b.tier === tier)?.label ?? tier);
@@ -303,6 +266,7 @@ const LP_GRAPH_MAINTENANCE = false;
 
 export default function LpGraph({ player }: { player: Player }) {
   const [snapshots, setSnapshots] = useState<LpSnapshot[] | null>(null);
+  const [cutoffs, setCutoffs] = useState<TierCutoffs | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [range, setRange] = useState<Range>("All");
 
@@ -313,7 +277,11 @@ export default function LpGraph({ player }: { player: Player }) {
     const url = `/api/lp-history/${encodeURIComponent(player.puuid)}?tier=${tier}&rank=${rank ?? ""}&lp=${leaguePoints}`;
     fetch(url)
       .then((r) => r.json())
-      .then((data: LpSnapshot[]) => { setSnapshots(data); setLoading(false); })
+      .then((data: { snapshots: LpSnapshot[]; cutoffs: TierCutoffs | null }) => {
+        setSnapshots(data.snapshots);
+        setCutoffs(data.cutoffs ?? undefined);
+        setLoading(false);
+      })
       .catch(() => { setSnapshots([]); setLoading(false); });
   }, [player.puuid, player.ranked]);
 
@@ -372,7 +340,7 @@ export default function LpGraph({ player }: { player: Player }) {
         </div>
       )}
 
-      {!loading && filtered !== null && <LpChart snapshots={filtered} />}
+      {!loading && filtered !== null && <LpChart snapshots={filtered} cutoffs={cutoffs} />}
 
       {!loading && filtered !== null && (
         <p className="text-zinc-700 text-[10px] text-center">

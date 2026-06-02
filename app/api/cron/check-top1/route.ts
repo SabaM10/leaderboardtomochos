@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
-import { fetchAllPlayers } from "@/lib/riot";
+import { fetchAllPlayers, fetchTierCutoffs } from "@/lib/riot";
 import { FRIENDS } from "@/config/friends";
 import { compareRank, TIER_WEIGHTS } from "@/lib/ranking";
-import { Tier, Division } from "@/lib/types";
+import { Tier, Division, TierCutoffs } from "@/lib/types";
+import { toDisplayLp } from "@/lib/lp";
 
 const KV_KEY = "leaderboard:top1";
 const KV_RANKS_KEY = "leaderboard:player-ranks";
@@ -12,18 +13,9 @@ const KV_POSITIONS_KEY = "leaderboard:player-positions";
 const KV_POSITION_CHANGES_KEY = "leaderboard:position-changes";
 const KV_POS_HISTORY_KEY = "leaderboard:position-history";
 const KV_LIVE_GAMES_KEY = "leaderboard:alerted-live-games";
+const KV_CUTOFFS_KEY = "leaderboard:tier-cutoffs";
 const LP_SNAPSHOT_MAX = 5000;
 const POS_HISTORY_MAX = 2016;
-
-function toDisplayLp(tier: string, rank: string | null, lp: number): number {
-  const tierBase: Record<string, number> = {
-    IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600,
-    EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2900, CHALLENGER: 3000,
-  };
-  const rankAdd: Record<string, number> = { IV: 0, III: 100, II: 200, I: 300 };
-  const noDivision = ["MASTER", "GRANDMASTER", "CHALLENGER"].includes(tier);
-  return (tierBase[tier] ?? 0) + (!noDivision && rank ? (rankAdd[rank] ?? 0) : 0) + Math.min(lp, 100);
-}
 
 interface StoredRank {
   tier: Tier;
@@ -81,7 +73,14 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const players = await fetchAllPlayers(FRIENDS);
+  // Fetch fresh tier cutoffs and persist for other endpoints to use
+  const freshCutoffs = await fetchTierCutoffs();
+  const [players] = await Promise.all([
+    fetchAllPlayers(FRIENDS),
+    freshCutoffs ? kv.set(KV_CUTOFFS_KEY, freshCutoffs) : Promise.resolve(),
+  ]);
+  const cutoffs: TierCutoffs | undefined = freshCutoffs ?? ((await kv.get<TierCutoffs>(KV_CUTOFFS_KEY)) ?? undefined);
+
   const sorted = [...players].sort(compareRank);
   const top1 = sorted.find((p) => p.ranked && p.score > 0);
 
@@ -158,7 +157,7 @@ export async function GET(req: NextRequest) {
     players
       .filter((p) => p.puuid && p.ranked)
       .map(async (p) => {
-        const score = toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints);
+        const score = toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints, cutoffs);
         const key = `${KV_LP_PREFIX}:${p.puuid}`;
         const existing = (await kv.get<{ t: number; s: number }[]>(key)) ?? [];
         const last = existing[existing.length - 1];

@@ -1,6 +1,6 @@
 import {
   RiotAccount, LeagueEntryDTO, RankedInfo,
-  LiveGame, MatchResult, Player, FriendConfig,
+  LiveGame, MatchResult, Player, FriendConfig, TierCutoffs,
 } from "@/lib/types";
 import { computeScore } from "@/lib/ranking";
 
@@ -200,6 +200,29 @@ function fallbackPlayer(friend: FriendConfig, reason: unknown): Player {
     profileIconId: null,
     error: reason instanceof Error ? reason.message : "Unknown error",
   };
+}
+
+export async function fetchTierCutoffs(): Promise<TierCutoffs | null> {
+  try {
+    const [gmRes, challRes] = await Promise.all([
+      riotFetch(
+        "https://la2.api.riotgames.com/lol/league/v4/grandmasterleagues/by-queue/RANKED_SOLO_5x5",
+        { headers: riotHeaders, next: { revalidate: 3600 } }
+      ),
+      riotFetch(
+        "https://la2.api.riotgames.com/lol/league/v4/challengerleagues/by-queue/RANKED_SOLO_5x5",
+        { headers: riotHeaders, next: { revalidate: 3600 } }
+      ),
+    ]);
+    if (!gmRes.ok || !challRes.ok) return null;
+    const gmData: { entries: { leaguePoints: number }[] } = await gmRes.json();
+    const challData: { entries: { leaguePoints: number }[] } = await challRes.json();
+    const gmMin = Math.min(...gmData.entries.map((e) => e.leaguePoints));
+    const challMin = Math.min(...challData.entries.map((e) => e.leaguePoints));
+    return { gmMin, challMin };
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchAllPlayers(friends: FriendConfig[]): Promise<Player[]> {

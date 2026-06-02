@@ -85,3 +85,8 @@ export interface LpSnapshot {
   score: number;      // toDisplayLp value used as chart Y axis
   approximate: boolean;
 }
+
+export interface TierCutoffs {
+  gmMin: number;
+  challMin: number;
+}
