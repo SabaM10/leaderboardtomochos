@@ -19,7 +19,8 @@ function toDisplayLp(tier: string, rank: string | null, lp: number): number {
     EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2900, CHALLENGER: 3000,
   };
   const rankAdd: Record<string, number> = { IV: 0, III: 100, II: 200, I: 300 };
-  return (tierBase[tier] ?? 0) + (rank ? (rankAdd[rank] ?? 0) : 0) + Math.min(lp, 100);
+  const noDivision = ["MASTER", "GRANDMASTER", "CHALLENGER"].includes(tier);
+  return (tierBase[tier] ?? 0) + (!noDivision && rank ? (rankAdd[rank] ?? 0) : 0) + Math.min(lp, 100);
 }
 
 function scoreToLabel(score: number): string {
