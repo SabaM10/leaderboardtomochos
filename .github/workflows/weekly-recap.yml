@@ -1,0 +1,16 @@
+name: Weekly Recap
+
+on:
+  schedule:
+    - cron: '0 12 * * 1'   # Lunes 9:00 ART (UTC-3)
+  workflow_dispatch:         # También se puede correr manualmente
+
+jobs:
+  recap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar recap semanal
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.VERCEL_APP_URL }}/api/cron/weekly-recap?secret=${{ secrets.CRON_SECRET }}")
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then exit 1; fi

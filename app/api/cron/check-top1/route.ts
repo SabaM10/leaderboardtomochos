@@ -10,7 +10,10 @@ const KV_RANKS_KEY = "leaderboard:player-ranks";
 const KV_LP_PREFIX = "leaderboard:lp-snapshots";
 const KV_POSITIONS_KEY = "leaderboard:player-positions";
 const KV_POSITION_CHANGES_KEY = "leaderboard:position-changes";
+const KV_POS_HISTORY_KEY = "leaderboard:position-history";
+const KV_LIVE_GAMES_KEY = "leaderboard:alerted-live-games";
 const LP_SNAPSHOT_MAX = 5000;
+const POS_HISTORY_MAX = 2016;
 
 function toDisplayLp(tier: string, rank: string | null, lp: number): number {
   const tierBase: Record<string, number> = {
@@ -245,14 +248,59 @@ export async function GET(req: NextRequest) {
     overtakes.push("sin posiciones previas en KV");
   }
 
+  // --- Head-to-head detection ---
+  const livePlayers = players.filter((p) => p.live && p.puuid);
+  const liveAlerts: string[] = [];
+
+  if (livePlayers.length >= 2) {
+    const byGame = new Map<number, typeof livePlayers>();
+    for (const p of livePlayers) {
+      const t = p.live!.gameStartTime;
+      if (!byGame.has(t)) byGame.set(t, []);
+      byGame.get(t)!.push(p);
+    }
+
+    const alertedGames = new Set<number>(await kv.get<number[]>(KV_LIVE_GAMES_KEY) ?? []);
+    let changed = false;
+
+    for (const [gameStart, group] of byGame) {
+      if (group.length >= 2 && !alertedGames.has(gameStart)) {
+        const roleId = process.env.DISCORD_LOL_ROLE_ID;
+        const mention = roleId ? `<@&${roleId}> ` : "";
+        const names = group.map((p) => `**${p.gameName}**`).join(" y ");
+        await sendDiscordMessage(`${mention}⚔️ ${names} están en la misma partida!`);
+        alertedGames.add(gameStart);
+        liveAlerts.push(group.map((p) => p.gameName).join(" vs "));
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      const cutoff = Date.now() - 3 * 60 * 60 * 1000;
+      await kv.set(KV_LIVE_GAMES_KEY, [...alertedGames].filter((t) => t > cutoff));
+    }
+  }
+
+  // --- Position history snapshots ---
+  const posHistory = (await kv.get<Record<string, { t: number; pos: number }[]>>(KV_POS_HISTORY_KEY)) ?? {};
+  for (const [riotId, pos] of Object.entries(currentPositions)) {
+    if (!posHistory[riotId]) posHistory[riotId] = [];
+    const last = posHistory[riotId][posHistory[riotId].length - 1];
+    if (!last || now - last.t > 60_000) {
+      posHistory[riotId].push({ t: now, pos });
+      if (posHistory[riotId].length > POS_HISTORY_MAX) posHistory[riotId].splice(0, posHistory[riotId].length - POS_HISTORY_MAX);
+    }
+  }
+
   await Promise.all([
     kv.set(KV_POSITIONS_KEY, currentPositions),
     kv.set(KV_POSITION_CHANGES_KEY, positionChanges),
+    kv.set(KV_POS_HISTORY_KEY, posHistory),
   ]);
 
   // --- Top 1 detection ---
   if (!top1) {
-    return NextResponse.json({ message: "No hay jugadores rankeados", demotions, promotions, overtakes });
+    return NextResponse.json({ message: "No hay jugadores rankeados", demotions, promotions, overtakes, liveAlerts });
   }
 
   const currentId = top1.riotId;
@@ -260,11 +308,11 @@ export async function GET(req: NextRequest) {
 
   if (!previousId) {
     await kv.set(KV_KEY, currentId);
-    return NextResponse.json({ message: "Primera corrida - guardado", top1: currentId, demotions, promotions, overtakes });
+    return NextResponse.json({ message: "Primera corrida - guardado", top1: currentId, demotions, promotions, overtakes, liveAlerts });
   }
 
   if (previousId === currentId) {
-    return NextResponse.json({ message: "Sin cambio", top1: currentId, demotions, promotions, overtakes });
+    return NextResponse.json({ message: "Sin cambio", top1: currentId, demotions, promotions, overtakes, liveAlerts });
   }
 
   const channelId = process.env.DISCORD_ALERT_CHANNEL_ID;

@@ -3,6 +3,7 @@ import { fetchAllPlayers } from "@/lib/riot";
 import { compareRank } from "@/lib/ranking";
 import LeaderboardTable from "@/components/leaderboard-table";
 import AutoRefresh from "@/components/auto-refresh";
+import PositionChart from "@/components/position-chart";
 import { kv } from "@vercel/kv";
 import Link from "next/link";
 
@@ -78,6 +79,14 @@ export default async function Home() {
         </div>
 
         <LeaderboardTable players={players} ddVersion={ddVersion} positionChanges={positionChanges ?? {}} />
+
+        {/* Position history chart */}
+        <div className="rounded-2xl border border-white/5 bg-white/[0.03] backdrop-blur-sm p-5 space-y-3">
+          <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-zinc-500">
+            Historial de posiciones
+          </h2>
+          <PositionChart players={players} />
+        </div>
 
         <p className="text-center text-zinc-700 text-xs">
           Datos obtenidos de la Riot API · No afiliado con Riot Games
