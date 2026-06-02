@@ -205,75 +205,67 @@ function MatchRow({ match, ddVersion }: { match: MatchResult; ddVersion: string 
     <div className={`flex items-stretch rounded-xl overflow-hidden border ${
       match.win ? "border-blue-800/30 bg-blue-950/25" : "border-red-900/30 bg-red-950/20"
     }`}>
-      {/* Left accent */}
       <div className={`w-1 flex-shrink-0 ${match.win ? "bg-blue-500" : "bg-red-600"}`} />
 
-      <div className="flex items-center gap-2 px-2.5 py-2 flex-1 min-w-0">
-        {/* Champion + spells */}
-        <div className="flex items-center gap-1 shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/champion/${match.championName}.png`}
-            alt={match.championName}
-            width={42}
-            height={42}
-            className="rounded-full object-cover"
-          />
-          <div className="flex flex-col gap-0.5">
-            <SpellSlot spellId={match.spell1Id} ddVersion={ddVersion} />
-            <SpellSlot spellId={match.spell2Id} ddVersion={ddVersion} />
+      <div className="flex flex-col gap-1 px-2.5 py-2 flex-1 min-w-0">
+        {/* Row 1: champ + spells | result/name/time | KDA | items */}
+        <div className="flex items-center gap-2">
+          {/* Champion + spells */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/champion/${match.championName}.png`}
+              alt={match.championName}
+              width={36}
+              height={36}
+              className="rounded-full object-cover"
+            />
+            <div className="flex flex-col gap-0.5">
+              <SpellSlot spellId={match.spell1Id} ddVersion={ddVersion} />
+              <SpellSlot spellId={match.spell2Id} ddVersion={ddVersion} />
+            </div>
+          </div>
+
+          {/* Result + name + duration */}
+          <div className="w-14 shrink-0">
+            <div className={`text-[11px] font-bold leading-tight ${match.win ? "text-blue-400" : "text-red-400"}`}>
+              {match.win ? "Victoria" : "Derrota"}
+            </div>
+            <div className="text-zinc-500 text-[10px] truncate leading-tight">{match.championName}</div>
+            <div className="text-zinc-600 text-[10px] leading-tight">{fmtDuration(match.durationSecs)}</div>
+          </div>
+
+          {/* KDA */}
+          <div className="flex-1 text-center min-w-0">
+            <div className="text-zinc-100 text-[12px] font-bold font-mono leading-tight whitespace-nowrap">
+              {match.kills} <span className="text-zinc-500 font-normal">/</span> <span className="text-red-400">{match.deaths}</span> <span className="text-zinc-500 font-normal">/</span> {match.assists}
+            </div>
+            <div className={`text-[10px] font-mono ${kdaColor}`}>{kda} KDA</div>
+          </div>
+
+          {/* Items */}
+          <div className="flex flex-col gap-0.5 shrink-0">
+            <div className="flex gap-0.5">
+              {(mainItems.length ? mainItems : Array(6).fill(0)).slice(0, 3).map((id: number, i: number) => (
+                <ItemSlot key={i} itemId={id} ddVersion={ddVersion} />
+              ))}
+            </div>
+            <div className="flex gap-0.5">
+              {(mainItems.length ? mainItems : Array(6).fill(0)).slice(3, 6).map((id: number, i: number) => (
+                <ItemSlot key={i + 3} itemId={id} ddVersion={ddVersion} />
+              ))}
+              <ItemSlot itemId={trinket} ddVersion={ddVersion} />
+            </div>
           </div>
         </div>
 
-        {/* Result + name + duration */}
-        <div className="w-[58px] shrink-0">
-          <div className={`text-[11px] font-bold leading-tight ${match.win ? "text-blue-400" : "text-red-400"}`}>
-            {match.win ? "Victoria" : "Derrota"}
-          </div>
-          <div className="text-zinc-500 text-[10px] truncate leading-tight">{match.championName}</div>
-          <div className="text-zinc-600 text-[10px] leading-tight">{fmtDuration(match.durationSecs)}</div>
-        </div>
-
-        {/* Items: 3+3 + trinket */}
-        <div className="flex flex-col gap-0.5 shrink-0">
-          <div className="flex gap-0.5">
-            {(mainItems.length ? mainItems : Array(6).fill(0)).slice(0, 3).map((id: number, i: number) => (
-              <ItemSlot key={i} itemId={id} ddVersion={ddVersion} />
-            ))}
-          </div>
-          <div className="flex gap-0.5">
-            {(mainItems.length ? mainItems : Array(6).fill(0)).slice(3, 6).map((id: number, i: number) => (
-              <ItemSlot key={i + 3} itemId={id} ddVersion={ddVersion} />
-            ))}
-            <ItemSlot itemId={trinket} ddVersion={ddVersion} />
-          </div>
-        </div>
-
-        {/* KDA */}
-        <div className="flex-1 text-center min-w-0 px-1">
-          <div className="text-zinc-100 text-[13px] font-bold font-mono leading-tight whitespace-nowrap">
-            {match.kills}{" "}
-            <span className="text-zinc-500 font-normal">/</span>{" "}
-            <span className="text-red-400">{match.deaths}</span>{" "}
-            <span className="text-zinc-500 font-normal">/</span>{" "}
-            {match.assists}
-          </div>
-          <div className={`text-[10px] font-mono mt-0.5 ${kdaColor}`}>{kda} KDA</div>
-        </div>
-
-        {/* Stats */}
-        <div className="text-right shrink-0">
-          <div className="text-zinc-300 text-[11px] font-mono whitespace-nowrap">
-            CS {match.cs} <span className="text-zinc-600">({csPerMin}/m)</span>
-          </div>
-          <div className="flex items-center justify-end gap-1.5 mt-0.5">
-            {kpPct !== null && (
-              <span className="text-zinc-500 text-[10px]">P/A {kpPct}%</span>
-            )}
-            {posLabel && (
-              <span className="text-zinc-500 text-[10px]">{posLabel}</span>
-            )}
-          </div>
+        {/* Row 2: secondary stats */}
+        <div className="flex items-center gap-3 pl-[54px]">
+          <span className="text-zinc-500 text-[10px] font-mono">
+            CS {match.cs} <span className="text-zinc-700">({csPerMin}/m)</span>
+          </span>
+          {kpPct !== null && <span className="text-zinc-600 text-[10px]">P/A {kpPct}%</span>}
+          {posLabel && <span className="text-zinc-600 text-[10px]">{posLabel}</span>}
         </div>
       </div>
     </div>
@@ -300,7 +292,7 @@ function MatchHistoryModal({
     >
       <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
       <div
-        className="relative bg-[#0c0c1a] border border-white/10 rounded-2xl p-5 w-full max-w-lg shadow-2xl"
+        className="relative bg-[#0c0c1a] border border-white/10 rounded-2xl p-5 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
