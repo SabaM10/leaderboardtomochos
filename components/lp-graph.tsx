@@ -298,7 +298,7 @@ function LpChart({ snapshots }: { snapshots: LpSnapshot[] }) {
 
 type Range = "7D" | "1M" | "All";
 
-const LP_GRAPH_MAINTENANCE = true;
+const LP_GRAPH_MAINTENANCE = false;
 
 export default function LpGraph({ player }: { player: Player }) {
   const [snapshots, setSnapshots] = useState<LpSnapshot[] | null>(null);
