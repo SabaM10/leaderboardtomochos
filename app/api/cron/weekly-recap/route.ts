@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
   if (!secret || secret !== process.env.CRON_SECRET) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
+  const preview = req.nextUrl.searchParams.get("preview") === "1";
 
   const [players, cutoffs] = await Promise.all([
     fetchAllPlayers(FRIENDS),
@@ -125,7 +126,7 @@ export async function GET(req: NextRequest) {
   ];
 
   await sendDiscordMessage(lines.join("\n"));
-  await kv.set(KV_WEEKLY_BASELINE, newBaseline);
+  if (!preview) await kv.set(KV_WEEKLY_BASELINE, newBaseline);
 
-  return NextResponse.json({ message: "Recap enviado", stats });
+  return NextResponse.json({ message: preview ? "Recap enviado (preview, baseline sin cambios)" : "Recap enviado", stats });
 }
