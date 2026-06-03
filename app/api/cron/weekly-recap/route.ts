@@ -113,15 +113,15 @@ export async function GET(req: NextRequest) {
       .filter((p) => p.ranked)
       .map((p, i) => {
         const s = stats.find((x) => x.riotId === p.riotId);
-        const delta = s?.lpDelta ?? 0;
-        const arrow = delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : "→";
+        const delta = Math.round(s?.lpDelta ?? 0);
+        const arrow = delta > 0 ? `▲${delta} LP` : delta < 0 ? `▼${Math.abs(delta)} LP` : `→ 0 LP`;
         const label = scoreToLabel(toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints, cutoffs ?? undefined));
         const games = s?.gamesPlayed ?? 0;
-        return `${i + 1}. **${p.gameName}** · ${label} · ${arrow} LP · ${games} partidas`;
+        return `${i + 1}. **${p.gameName}** · ${label} · ${arrow} · ${games} partidas`;
       }),
     "",
-    ...(mvp?.lpDelta > 0 ? [`🏆 **MVP de la semana:** ${mvp.gameName} (+${mvp.lpDelta} LP en ${mvp.gamesPlayed} partidas)`] : []),
-    ...(worst?.lpDelta < 0 ? [`💀 **El que más cayó:** ${worst.gameName} (${worst.lpDelta} LP en ${worst.gamesPlayed} partidas)`] : []),
+    ...(mvp?.lpDelta > 0 ? [`🏆 **MVP de la semana:** ${mvp.gameName} (+${Math.round(mvp.lpDelta)} LP en ${mvp.gamesPlayed} partidas)`] : []),
+    ...(worst?.lpDelta < 0 ? [`💀 **El que más cayó:** ${worst.gameName} (${Math.round(worst.lpDelta)} LP en ${worst.gamesPlayed} partidas)`] : []),
   ];
 
   await sendDiscordMessage(lines.join("\n"));
