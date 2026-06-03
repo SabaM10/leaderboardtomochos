@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
       .map((p, i) => {
         const s = stats.find((x) => x.riotId === p.riotId);
         const delta = Math.round(s?.lpDelta ?? 0);
-        const arrow = delta > 0 ? `▲${delta} LP` : delta < 0 ? `▼${Math.abs(delta)} LP` : `→ 0 LP`;
+        const arrow = delta > 0 ? `+${delta} LP` : delta < 0 ? `${delta} LP` : `0 LP`;
         const label = scoreToLabel(toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints, cutoffs ?? undefined));
         const games = s?.gamesPlayed ?? 0;
         return `${i + 1}. **${p.gameName}** · ${label} · ${arrow} · ${games} partidas`;
