@@ -90,6 +90,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: "Primera corrida - baseline guardado" });
   }
 
+  // Fetch games played since baseline timestamp — one match-IDs call per player, all in parallel
+  const baselineTs = Object.values(baseline)[0]?.t ?? 0;
+  const startTimeSecs = Math.floor(baselineTs / 1000);
+  const gamesPlayedMap = Object.fromEntries(
+    await Promise.all(
+      players
+        .filter((p) => p.puuid && baseline[p.riotId])
+        .map(async (p) => {
+          try {
+            const res = await fetch(
+              `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(p.puuid!)}/ids?queue=420&startTime=${startTimeSecs}&count=100`,
+              { headers: { "X-Riot-Token": process.env.RIOT_API_KEY! } }
+            );
+            const ids: string[] = res.ok ? await res.json() : [];
+            return [p.riotId, ids.length] as [string, number];
+          } catch {
+            return [p.riotId, 0] as [string, number];
+          }
+        })
+    )
+  );
+
   // Compute weekly stats per player
   const stats = players
     .filter((p) => p.ranked && baseline[p.riotId])
@@ -97,7 +119,7 @@ export async function GET(req: NextRequest) {
       const base = baseline[p.riotId];
       const currentScore = toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints, cutoffs ?? undefined);
       const lpDelta = currentScore - base.score;
-      const gamesPlayed = (p.ranked!.wins + p.ranked!.losses) - (base.wins + base.losses);
+      const gamesPlayed = gamesPlayedMap[p.riotId] ?? 0;
       return { gameName: p.gameName, lpDelta, gamesPlayed, currentScore, riotId: p.riotId };
     });
 
