@@ -8,13 +8,14 @@ const PLAYER_COLORS = [
   "#34d399", "#fb923c", "#60a5fa", "#f472b6", "#a3e635",
 ];
 
-const PAD = { top: 16, right: 90, bottom: 28, left: 28 };
-const CHART_W = 520;
-const CHART_H = 200;
+const PAD = { top: 16, right: 100, bottom: 28, left: 28 };
+const CHART_W = 600;
+const CHART_H = 320;
 const PLOT_W = CHART_W - PAD.left - PAD.right;
 const PLOT_H = CHART_H - PAD.top - PAD.bottom;
 
 type PosHistory = Record<string, { t: number; pos: number }[]>;
+type Range = "7D" | "1M" | "All";
 
 function fmtDate(ts: number) {
   return new Date(ts).toLocaleDateString("es", { day: "numeric", month: "short" });
@@ -32,6 +33,7 @@ interface TooltipData {
 export default function PositionChart({ players }: { players: Player[] }) {
   const [history, setHistory] = useState<PosHistory | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const [range, setRange] = useState<Range>("All");
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -50,13 +52,22 @@ export default function PositionChart({ players }: { players: Player[] }) {
     );
   }
 
+  const rangeCutoff = range === "All" ? 0 : Date.now() - (range === "7D" ? 7 : 30) * 86400_000;
+
   // Build sorted list of players that have history
   const entries = players
-    .map((p, colorIdx) => ({
-      player: p,
-      color: PLAYER_COLORS[colorIdx % PLAYER_COLORS.length],
-      data: (history[p.riotId] ?? []).sort((a, b) => a.t - b.t),
-    }))
+    .map((p, colorIdx) => {
+      const sorted = (history[p.riotId] ?? []).sort((a, b) => a.t - b.t);
+      // Keep one anchor point before the cutoff so lines start at the edge
+      const filtered = sorted.filter((d) => d.t >= rangeCutoff);
+      const anchor = sorted.filter((d) => d.t < rangeCutoff).at(-1);
+      const data = anchor ? [anchor, ...filtered] : filtered;
+      return {
+        player: p,
+        color: PLAYER_COLORS[colorIdx % PLAYER_COLORS.length],
+        data,
+      };
+    })
     .filter((e) => e.data.length >= 2);
 
   if (entries.length === 0) {
@@ -112,7 +123,26 @@ export default function PositionChart({ players }: { players: Player[] }) {
     setTooltip(best);
   }
 
+  const ranges: Range[] = ["7D", "1M", "All"];
+
   return (
+    <div className="space-y-3">
+      <div className="flex gap-1.5 justify-end">
+        {ranges.map((r) => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors ${
+              range === r
+                ? "bg-white/10 text-zinc-100"
+                : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+            }`}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+
     <div className="relative w-full">
       <svg
         ref={svgRef}
@@ -236,6 +266,7 @@ export default function PositionChart({ players }: { players: Player[] }) {
           <div className="text-zinc-500 mt-0.5">{fmtDate(tooltip.ts)}</div>
         </div>
       )}
+    </div>
     </div>
   );
 }
