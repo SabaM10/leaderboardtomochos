@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Player, MatchResult } from "@/lib/types";
 import { winrate } from "@/lib/ranking";
 import LpGraph from "@/components/lp-graph";
@@ -277,10 +277,14 @@ type ModalTab = "matches" | "lp";
 function MatchHistoryModal({
   player,
   ddVersion,
+  matches,
+  loadingMatches,
   onClose,
 }: {
   player: Player;
   ddVersion: string;
+  matches: MatchResult[];
+  loadingMatches: boolean;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<ModalTab>("matches");
@@ -333,11 +337,17 @@ function MatchHistoryModal({
 
         {/* Content */}
         {tab === "matches" && (
-          player.lastMatches.length === 0 ? (
+          loadingMatches ? (
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-16 rounded-xl bg-white/[0.04] animate-pulse" />
+              ))}
+            </div>
+          ) : matches.length === 0 ? (
             <p className="text-zinc-600 text-sm text-center py-6">Sin datos de partidas recientes</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {player.lastMatches.map((m, i) => (
+              {matches.map((m, i) => (
                 <MatchRow key={i} match={m} ddVersion={ddVersion} />
               ))}
             </div>
@@ -448,6 +458,31 @@ function PlayerCard({
 
 export default function LeaderboardTable({ players, ddVersion, positionChanges = {} }: { players: Player[]; ddVersion: string; positionChanges?: Record<string, number> }) {
   const [selected, setSelected] = useState<Player | null>(null);
+  const [matchesMap, setMatchesMap] = useState<Record<string, MatchResult[]>>({});
+  const [loadingSet, setLoadingSet] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const puuids = players.filter((p) => p.puuid);
+    if (!puuids.length) return;
+
+    setLoadingSet(new Set(puuids.map((p) => p.riotId)));
+
+    puuids.forEach((player) => {
+      fetch(`/api/matches/${player.puuid}`)
+        .then((r) => r.json())
+        .then((data: MatchResult[]) => {
+          setMatchesMap((prev) => ({ ...prev, [player.riotId]: data }));
+        })
+        .catch(() => {})
+        .finally(() => {
+          setLoadingSet((prev) => {
+            const next = new Set(prev);
+            next.delete(player.riotId);
+            return next;
+          });
+        });
+    });
+  }, [players]);
 
   return (
     <>
@@ -456,7 +491,7 @@ export default function LeaderboardTable({ players, ddVersion, positionChanges =
         {players.map((player, i) => (
           <PlayerCard
             key={player.riotId}
-            player={player}
+            player={{ ...player, lastMatches: matchesMap[player.riotId] ?? [] }}
             pos={i}
             ddVersion={ddVersion}
             positionDelta={positionChanges[player.riotId] ?? 0}
@@ -550,7 +585,7 @@ export default function LeaderboardTable({ players, ddVersion, positionChanges =
                       ) : <span className="text-zinc-600">—</span>}
                     </td>
                     <td className="px-4 py-5 text-right">
-                      <MatchDots matches={player.lastMatches} />
+                      <MatchDots matches={matchesMap[player.riotId] ?? []} />
                     </td>
                   </tr>
                 );
@@ -565,6 +600,8 @@ export default function LeaderboardTable({ players, ddVersion, positionChanges =
         <MatchHistoryModal
           player={selected}
           ddVersion={ddVersion}
+          matches={matchesMap[selected.riotId] ?? []}
+          loadingMatches={loadingSet.has(selected.riotId)}
           onClose={() => setSelected(null)}
         />
       )}

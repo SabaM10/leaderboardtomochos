@@ -3,6 +3,7 @@ import {
   LiveGame, MatchResult, Player, FriendConfig, TierCutoffs,
 } from "@/lib/types";
 import { computeScore } from "@/lib/ranking";
+import { kv } from "@vercel/kv";
 
 const RIOT_API_KEY = process.env.RIOT_API_KEY!;
 const REVALIDATE = 300;
@@ -22,10 +23,22 @@ async function riotFetch(url: string, init: RequestInit): Promise<Response> {
 // ---------- helpers ----------
 
 async function getPuuid(gameName: string, tagLine: string): Promise<RiotAccount> {
+  const cacheKey = `puuid:${gameName}#${tagLine}`;
+  try {
+    const cached = await kv.get<RiotAccount>(cacheKey);
+    if (cached) return cached;
+  } catch { /* KV unavailable in local dev */ }
+
   const url = `https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
   const res = await riotFetch(url, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
   if (!res.ok) throw new Error(`ACCOUNT-V1 ${res.status}: ${gameName}#${tagLine}`);
-  return res.json();
+  const account: RiotAccount = await res.json();
+
+  try {
+    await kv.set(cacheKey, account);
+  } catch { /* KV unavailable in local dev */ }
+
+  return account;
 }
 
 async function getRankedInfo(puuid: string): Promise<RankedInfo | null> {
@@ -97,7 +110,7 @@ async function getTopChampion(puuid: string): Promise<string | null> {
   return getChampionNameById(data[0].championId);
 }
 
-async function getLastMatches(puuid: string): Promise<MatchResult[]> {
+export async function getLastMatches(puuid: string): Promise<MatchResult[]> {
   const idsUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=5`;
   const idsRes = await riotFetch(idsUrl, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
   if (!idsRes.ok) return [];
@@ -145,10 +158,9 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
   try {
     const account = await getPuuid(friend.gameName, friend.tagLine);
 
-    const [ranked, live, lastMatches, topChampionName] = await Promise.all([
+    const [ranked, live, topChampionName] = await Promise.all([
       getRankedInfo(account.puuid),
       getLiveGame(account.puuid),
-      getLastMatches(account.puuid),
       getTopChampion(account.puuid),
     ]);
     const profileIconId = await getProfileIconId(account.puuid);
@@ -165,7 +177,7 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
       ranked,
       score,
       live,
-      lastMatches,
+      lastMatches: [],
       topChampionName,
       profileIconId,
     };
