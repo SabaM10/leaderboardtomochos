@@ -467,21 +467,15 @@ export default function LeaderboardTable({ players, ddVersion, positionChanges =
 
     setLoadingSet(new Set(puuids.map((p) => p.riotId)));
 
-    puuids.forEach((player) => {
-      fetch(`/api/matches/${player.puuid}`)
-        .then((r) => r.json())
-        .then((data: MatchResult[]) => {
-          setMatchesMap((prev) => ({ ...prev, [player.riotId]: data }));
-        })
-        .catch(() => {})
-        .finally(() => {
-          setLoadingSet((prev) => {
-            const next = new Set(prev);
-            next.delete(player.riotId);
-            return next;
-          });
-        });
-    });
+    const playersParam = puuids
+      .map((p) => `${encodeURIComponent(p.riotId)}=${encodeURIComponent(p.puuid!)}`)
+      .join(",");
+
+    fetch(`/api/matches/batch?players=${encodeURIComponent(playersParam)}`)
+      .then((r) => r.json())
+      .then((data: Record<string, MatchResult[]>) => setMatchesMap(data))
+      .catch(() => {})
+      .finally(() => setLoadingSet(new Set()));
   }, [players]);
 
   return (
