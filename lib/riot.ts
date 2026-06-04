@@ -227,7 +227,7 @@ export async function fetchTierCutoffs(): Promise<TierCutoffs | null> {
 
 export async function fetchAllPlayers(friends: FriendConfig[]): Promise<Player[]> {
   const players: Player[] = [];
-  const BATCH = 2;
+  const BATCH = 3;
 
   for (let i = 0; i < friends.length; i += BATCH) {
     const batch = friends.slice(i, i + BATCH);
