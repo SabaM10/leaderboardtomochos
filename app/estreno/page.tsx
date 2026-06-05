@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import EstrenoCountdown from "@/components/estreno-countdown";
-import { ESTRENO_DATE, YOUTUBE_ID } from "@/config/estreno";
+import { DATE_CONFIRMED, ESTRENO_DATE, YOUTUBE_ID } from "@/config/estreno";
 
 export const metadata: Metadata = {
   title: "Estreno Oficial · LA UNIÓN HACE LA FUERZA",
@@ -8,8 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default function EstrenoPage() {
-  const released = Date.now() >= ESTRENO_DATE.getTime();
-  const hasVideo = YOUTUBE_ID.length > 0;
+  const released = DATE_CONFIRMED && Date.now() >= ESTRENO_DATE.getTime();
 
   return (
     <main className="min-h-screen bg-[#07070f] text-zinc-100 px-4 py-12 flex flex-col items-center relative overflow-hidden">
@@ -60,8 +59,8 @@ export default function EstrenoPage() {
           <div className="h-px w-20 bg-gradient-to-l from-transparent to-amber-500/50" />
         </div>
 
-        {/* Estreno date */}
-        {!released && (
+        {/* estreno date — solo si está confirmada */}
+        {DATE_CONFIRMED && !released && (
           <p className="text-zinc-500 text-sm">
             {ESTRENO_DATE.toLocaleDateString("es", {
               weekday: "long",
@@ -75,7 +74,7 @@ export default function EstrenoPage() {
           </p>
         )}
 
-        {/* countdown / video */}
+        {/* countdown / video / teaser */}
         <EstrenoCountdown />
 
       </div>

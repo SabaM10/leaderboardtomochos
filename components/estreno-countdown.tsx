@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ESTRENO_DATE, YOUTUBE_ID } from "@/config/estreno";
+import { DATE_CONFIRMED, ESTRENO_DATE, YOUTUBE_ID } from "@/config/estreno";
 
 interface TimeLeft {
   days: number;
@@ -28,24 +28,49 @@ function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
+function PulsingDots() {
+  return (
+    <div className="flex gap-2 items-center justify-center">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-1.5 h-1.5 rounded-full bg-purple-500/60"
+          style={{ animation: `pulse 1.5s ease-in-out ${i * 0.3}s infinite` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function EstrenoCountdown() {
   const [time, setTime] = useState<TimeLeft | null>(null);
 
   useEffect(() => {
+    if (!DATE_CONFIRMED) return;
     setTime(getTimeLeft());
     const id = setInterval(() => setTime(getTimeLeft()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const released = time !== null && time.total <= 0;
+  const released = DATE_CONFIRMED && time !== null && time.total <= 0;
   const hasVideo = YOUTUBE_ID.length > 0;
 
   return (
     <div className="flex flex-col items-center gap-10 w-full">
 
-      {!released && (
+      {/* teaser críptico — sin fecha confirmada */}
+      {!DATE_CONFIRMED && (
+        <div className="flex flex-col items-center gap-6 py-8">
+          <PulsingDots />
+          <p className="text-zinc-300 text-lg italic text-center">
+            &ldquo;Los tiempos de dios son perfectos&rdquo;
+          </p>
+        </div>
+      )}
+
+      {/* countdown — fecha confirmada, sin estrenar */}
+      {DATE_CONFIRMED && !released && (
         <>
-          {/* countdown */}
           <div className="flex gap-4 sm:gap-8">
             {[
               { label: "DÍAS",     value: time?.days ?? 0 },
@@ -78,6 +103,7 @@ export default function EstrenoCountdown() {
         </>
       )}
 
+      {/* video — estrenado */}
       {released && (
         <div className="w-full flex flex-col items-center gap-6 animate-fadeIn">
           {hasVideo ? (
