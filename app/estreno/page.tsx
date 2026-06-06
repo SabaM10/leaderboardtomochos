@@ -17,7 +17,22 @@ export default function EstrenoPage() {
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full bg-purple-900/25 blur-[140px]" />
         <div className="absolute bottom-0 right-1/4 w-[400px] h-[300px] rounded-full bg-amber-900/10 blur-[100px]" />
+
+        {/* fog layers */}
+        <div className="fog-layer absolute bottom-0 left-0 w-[200%] h-48 bg-gradient-to-t from-[#07070f]/80 via-zinc-900/10 to-transparent blur-[2px]"
+          style={{ animation: "fogDrift 18s ease-in-out infinite alternate" }} />
+        <div className="fog-layer absolute bottom-0 left-[-50%] w-[200%] h-32 bg-gradient-to-t from-purple-950/20 via-transparent to-transparent blur-[4px]"
+          style={{ animation: "fogDrift 26s ease-in-out infinite alternate-reverse" }} />
+        <div className="fog-layer absolute top-0 left-0 w-[200%] h-24 bg-gradient-to-b from-[#07070f]/40 via-transparent to-transparent blur-[3px]"
+          style={{ animation: "fogDrift 22s ease-in-out infinite alternate" }} />
       </div>
+
+      <style>{`
+        @keyframes fogDrift {
+          0%   { transform: translateX(0); opacity: 0.6; }
+          100% { transform: translateX(-20%); opacity: 1; }
+        }
+      `}</style>
 
       <div className="relative w-full max-w-3xl flex flex-col items-center gap-8">
 
