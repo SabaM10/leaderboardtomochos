@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { FRIENDS } from "@/config/friends";
 import { fetchAllPlayers } from "@/lib/riot";
 import { compareRank } from "@/lib/ranking";
