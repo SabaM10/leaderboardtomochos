@@ -16,7 +16,7 @@ function PulsingDots() {
 }
 
 export default function EstrenoCountdown() {
-  const released = DATE_CONFIRMED && Date.now() >= ESTRENO_DATE.getTime();
+  const released = YOUTUBE_ID.length > 0 || (DATE_CONFIRMED && Date.now() >= ESTRENO_DATE.getTime());
   const hasVideo = YOUTUBE_ID.length > 0;
 
   return (

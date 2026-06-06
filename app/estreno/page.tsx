@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import type { Metadata } from "next";
 import EstrenoCountdown from "@/components/estreno-countdown";
 import { DATE_CONFIRMED, ESTRENO_DATE, YOUTUBE_ID } from "@/config/estreno";
@@ -8,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default function EstrenoPage() {
-  const released = DATE_CONFIRMED && Date.now() >= ESTRENO_DATE.getTime();
+  const released = YOUTUBE_ID.length > 0 || (DATE_CONFIRMED && Date.now() >= ESTRENO_DATE.getTime());
 
   return (
     <main className="min-h-screen bg-[#07070f] text-zinc-100 px-4 py-12 flex flex-col items-center relative overflow-hidden">
