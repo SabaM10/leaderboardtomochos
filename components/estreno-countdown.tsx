@@ -1,32 +1,5 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DATE_CONFIRMED, ESTRENO_DATE, YOUTUBE_ID } from "@/config/estreno";
-
-interface TimeLeft {
-  days: number;
-  hours: number;
-  minutes: number;
-  seconds: number;
-  total: number;
-}
-
-function getTimeLeft(): TimeLeft {
-  const total = ESTRENO_DATE.getTime() - Date.now();
-  if (total <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 };
-  return {
-    total,
-    days: Math.floor(total / (1000 * 60 * 60 * 24)),
-    hours: Math.floor((total / (1000 * 60 * 60)) % 24),
-    minutes: Math.floor((total / (1000 * 60)) % 60),
-    seconds: Math.floor((total / 1000) % 60),
-  };
-}
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
 
 function PulsingDots() {
   return (
@@ -43,16 +16,7 @@ function PulsingDots() {
 }
 
 export default function EstrenoCountdown() {
-  const [time, setTime] = useState<TimeLeft | null>(null);
-
-  useEffect(() => {
-    if (!DATE_CONFIRMED) return;
-    setTime(getTimeLeft());
-    const id = setInterval(() => setTime(getTimeLeft()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const released = DATE_CONFIRMED && time !== null && time.total <= 0;
+  const released = DATE_CONFIRMED && Date.now() >= ESTRENO_DATE.getTime();
   const hasVideo = YOUTUBE_ID.length > 0;
 
   return (
@@ -68,40 +32,6 @@ export default function EstrenoCountdown() {
         </div>
       )}
 
-      {/* countdown — fecha confirmada, sin estrenar */}
-      {DATE_CONFIRMED && !released && (
-        <>
-          <div className="flex gap-4 sm:gap-8">
-            {[
-              { label: "DÍAS",     value: time?.days ?? 0 },
-              { label: "HORAS",    value: time?.hours ?? 0 },
-              { label: "MINUTOS",  value: time?.minutes ?? 0 },
-              { label: "SEGUNDOS", value: time?.seconds ?? 0 },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex flex-col items-center gap-1">
-                <div
-                  className="w-20 sm:w-28 h-20 sm:h-28 rounded-2xl flex items-center justify-center text-4xl sm:text-6xl font-black tabular-nums"
-                  style={{
-                    background: "linear-gradient(145deg, #1a1a2e 0%, #12121f 100%)",
-                    boxShadow: "0 0 30px rgba(180,80,220,0.15), inset 0 1px 0 rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(180,80,220,0.2)",
-                    color: "#e8e8f8",
-                  }}
-                >
-                  {time === null ? "--" : pad(value)}
-                </div>
-                <span className="text-[10px] sm:text-xs font-bold tracking-[0.25em] text-zinc-600">
-                  {label}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-zinc-600 text-xs tracking-widest uppercase">
-            Quedate atento
-          </p>
-        </>
-      )}
 
       {/* video — estrenado */}
       {released && (
