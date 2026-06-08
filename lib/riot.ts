@@ -111,6 +111,12 @@ async function getTopChampion(puuid: string): Promise<string | null> {
 }
 
 export async function getLastMatches(puuid: string): Promise<MatchResult[]> {
+  const cacheKey = `matches:${puuid}`;
+  try {
+    const cached = await kv.get<MatchResult[]>(cacheKey);
+    if (cached) return cached;
+  } catch { /* KV unavailable */ }
+
   const idsUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=5`;
   const idsRes = await riotFetch(idsUrl, { headers: riotHeaders, next: { revalidate: REVALIDATE } });
   if (!idsRes.ok) return [];
@@ -148,6 +154,10 @@ export async function getLastMatches(puuid: string): Promise<MatchResult[]> {
     });
   }
 
+  if (results.length > 0) {
+    try { await kv.set(cacheKey, results, { ex: 300 }); } catch { /* KV unavailable */ }
+  }
+
   return results;
 }
 
@@ -158,11 +168,12 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
   try {
     const account = await getPuuid(friend.gameName, friend.tagLine);
 
-    const [ranked, live, topChampionName, profileIconId] = await Promise.all([
+    const [ranked, live, topChampionName, profileIconId, lastMatches] = await Promise.all([
       getRankedInfo(account.puuid),
       getLiveGame(account.puuid),
       getTopChampion(account.puuid),
       getProfileIconId(account.puuid),
+      getLastMatches(account.puuid),
     ]);
 
     const score = ranked
@@ -177,7 +188,7 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
       ranked,
       score,
       live,
-      lastMatches: [],
+      lastMatches,
       topChampionName,
       profileIconId,
     };

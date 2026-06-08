@@ -6,11 +6,31 @@ import { compareRank } from "@/lib/ranking";
 import { toDisplayLp } from "@/lib/lp";
 import { TierCutoffs } from "@/lib/types";
 
+const TIER_BASE: Record<string, number> = {
+  IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600,
+  EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2900, CHALLENGER: 3000,
+};
+const RANK_ADD: Record<string, number> = { IV: 0, III: 100, II: 200, I: 300 };
+
+function weeklyLpDelta(
+  baseTier: string, baseRank: string | null, baseLp: number,
+  curTier: string, curRank: string | null, curLp: number,
+): number {
+  if (baseTier === curTier) return curLp - baseLp;
+  // Tier change — use fixed base values so there's no gmMin dependency
+  const baseScore = (TIER_BASE[baseTier] ?? 0) + (baseRank ? (RANK_ADD[baseRank] ?? 0) : 0) + Math.min(baseLp, 100);
+  const curScore  = (TIER_BASE[curTier]  ?? 0) + (curRank  ? (RANK_ADD[curRank]  ?? 0) : 0) + Math.min(curLp, 100);
+  return curScore - baseScore;
+}
+
 const KV_WEEKLY_BASELINE = "leaderboard:weekly-baseline";
 const KV_CUTOFFS_KEY = "leaderboard:tier-cutoffs";
 
 interface WeeklyBaseline {
   score: number;
+  tier: string;
+  rank: string | null;
+  lp: number;
   wins: number;
   losses: number;
   t: number;
@@ -78,6 +98,9 @@ export async function GET(req: NextRequest) {
     if (!p.ranked || !p.riotId) continue;
     newBaseline[p.riotId] = {
       score: toDisplayLp(p.ranked.tier, p.ranked.rank ?? null, p.ranked.leaguePoints, cutoffs ?? undefined),
+      tier: p.ranked.tier,
+      rank: p.ranked.rank ?? null,
+      lp: p.ranked.leaguePoints,
       wins: p.ranked.wins,
       losses: p.ranked.losses,
       t: now,
@@ -117,8 +140,11 @@ export async function GET(req: NextRequest) {
     .filter((p) => p.ranked && baseline[p.riotId])
     .map((p) => {
       const base = baseline[p.riotId];
+      const lpDelta = weeklyLpDelta(
+        base.tier ?? p.ranked!.tier, base.rank ?? null, base.lp ?? 0,
+        p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints,
+      );
       const currentScore = toDisplayLp(p.ranked!.tier, p.ranked!.rank ?? null, p.ranked!.leaguePoints, cutoffs ?? undefined);
-      const lpDelta = currentScore - base.score;
       const gamesPlayed = gamesPlayedMap[p.riotId] ?? 0;
       return { gameName: p.gameName, lpDelta, gamesPlayed, currentScore, riotId: p.riotId };
     });

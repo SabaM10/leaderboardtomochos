@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import { FRIENDS } from "@/config/friends";
 import { fetchAllPlayers } from "@/lib/riot";
 import { compareRank } from "@/lib/ranking";
@@ -21,13 +22,78 @@ async function getDDragonVersion(): Promise<string> {
   }
 }
 
+function TableSkeleton() {
+  return (
+    <div className="space-y-10">
+      {/* Table skeleton */}
+      <div className="rounded-2xl border border-white/5 overflow-hidden bg-white/[0.03] backdrop-blur-sm">
+        {/* Header row */}
+        <div className="hidden sm:grid grid-cols-8 gap-4 px-4 py-3 border-b border-white/5 bg-white/[0.03]">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-3 rounded bg-white/5 animate-pulse" />
+          ))}
+        </div>
+        {/* Player rows */}
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-4 py-5 border-b border-white/[0.04] last:border-0">
+            <div className="w-6 h-4 rounded bg-white/5 animate-pulse shrink-0" />
+            <div className="w-9 h-9 rounded-full bg-white/5 animate-pulse shrink-0" />
+            <div className="w-9 h-9 rounded-full bg-white/5 animate-pulse shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-3 w-32 rounded bg-white/5 animate-pulse" />
+              <div className="h-2 w-20 rounded bg-white/[0.03] animate-pulse" />
+            </div>
+            <div className="hidden sm:flex gap-8">
+              <div className="h-3 w-12 rounded bg-white/5 animate-pulse" />
+              <div className="h-3 w-16 rounded bg-white/5 animate-pulse" />
+              <div className="h-3 w-10 rounded bg-white/5 animate-pulse" />
+              <div className="flex gap-1">
+                {Array.from({ length: 5 }).map((_, j) => (
+                  <div key={j} className="w-3 h-3 rounded-sm bg-white/5 animate-pulse" />
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart skeleton */}
+      <div className="rounded-2xl border border-white/5 bg-white/[0.03] backdrop-blur-sm p-5 space-y-3">
+        <div className="h-3 w-40 rounded bg-white/5 animate-pulse" />
+        <div className="h-48 rounded-xl bg-white/[0.02] animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+async function LeaderboardSection({
+  ddVersion,
+  positionChanges,
+}: {
+  ddVersion: string;
+  positionChanges: Record<string, number>;
+}) {
+  const players = await fetchAllPlayers(FRIENDS);
+  players.sort(compareRank);
+
+  return (
+    <>
+      <LeaderboardTable players={players} ddVersion={ddVersion} positionChanges={positionChanges} />
+      <div className="rounded-2xl border border-white/5 bg-white/[0.03] backdrop-blur-sm p-5 space-y-3">
+        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-zinc-500">
+          Historial de posiciones
+        </h2>
+        <PositionChart players={players} />
+      </div>
+    </>
+  );
+}
+
 export default async function Home() {
-  const [players, ddVersion, positionChanges] = await Promise.all([
-    fetchAllPlayers(FRIENDS),
+  const [ddVersion, positionChanges] = await Promise.all([
     getDDragonVersion(),
     kv.get<Record<string, number>>("leaderboard:position-changes").catch(() => null),
   ]);
-  players.sort(compareRank);
 
   return (
     <main className="min-h-screen bg-[#07070f] text-zinc-100 px-4 py-8 sm:py-12 relative overflow-hidden">
@@ -80,15 +146,12 @@ export default async function Home() {
           </div>
         </div>
 
-        <LeaderboardTable players={players} ddVersion={ddVersion} positionChanges={positionChanges ?? {}} />
-
-        {/* Position history chart */}
-        <div className="rounded-2xl border border-white/5 bg-white/[0.03] backdrop-blur-sm p-5 space-y-3">
-          <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-zinc-500">
-            Historial de posiciones
-          </h2>
-          <PositionChart players={players} />
-        </div>
+        <Suspense fallback={<TableSkeleton />}>
+          <LeaderboardSection
+            ddVersion={ddVersion}
+            positionChanges={positionChanges ?? {}}
+          />
+        </Suspense>
 
         <p className="text-center text-zinc-700 text-xs">
           Datos obtenidos de la Riot API · No afiliado con Riot Games
