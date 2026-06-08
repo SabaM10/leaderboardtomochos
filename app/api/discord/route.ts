@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
-import { fetchAllPlayers } from "@/lib/riot";
+import { fetchAllPlayers, getLastMatches } from "@/lib/riot";
 import { FRIENDS } from "@/config/friends";
 import { compareRank } from "@/lib/ranking";
 import { buildLeaderboardEmbed, buildPlayerEmbed, buildKdaEmbed, buildAyudaEmbed } from "@/lib/discord-format";
@@ -88,6 +88,12 @@ export async function POST(req: NextRequest) {
             getDDVersion(),
           ]);
           players.sort(compareRank);
+          await Promise.all(
+            players.map(async (p) => {
+              if (!p.puuid) return;
+              p.lastMatches = await getLastMatches(p.puuid);
+            })
+          );
           await followUp(token, { embeds: [buildLeaderboardEmbed(players)] });
         })()
       );
@@ -115,7 +121,9 @@ export async function POST(req: NextRequest) {
             fetchAllPlayers([friend]),
             getDDVersion(),
           ]);
-          await followUp(token, { embeds: [buildPlayerEmbed(players[0], ddVersion)] });
+          const p = players[0];
+          if (p.puuid) p.lastMatches = await getLastMatches(p.puuid);
+          await followUp(token, { embeds: [buildPlayerEmbed(p, ddVersion)] });
         })()
       );
       return NextResponse.json({ type: 5 });
@@ -138,7 +146,9 @@ export async function POST(req: NextRequest) {
       waitUntil(
         (async () => {
           const players = await fetchAllPlayers([friend]);
-          await followUp(token, { embeds: [buildKdaEmbed(players[0])] });
+          const p = players[0];
+          if (p.puuid) p.lastMatches = await getLastMatches(p.puuid);
+          await followUp(token, { embeds: [buildKdaEmbed(p)] });
         })()
       );
       return NextResponse.json({ type: 5 });
