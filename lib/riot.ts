@@ -168,12 +168,11 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
   try {
     const account = await getPuuid(friend.gameName, friend.tagLine);
 
-    const [ranked, live, topChampionName, profileIconId, lastMatches] = await Promise.all([
+    const [ranked, live, topChampionName, profileIconId] = await Promise.all([
       getRankedInfo(account.puuid),
       getLiveGame(account.puuid),
       getTopChampion(account.puuid),
       getProfileIconId(account.puuid),
-      getLastMatches(account.puuid),
     ]);
 
     const score = ranked
@@ -188,7 +187,7 @@ async function fetchPlayer(friend: FriendConfig): Promise<Player> {
       ranked,
       score,
       live,
-      lastMatches,
+      lastMatches: [],
       topChampionName,
       profileIconId,
     };

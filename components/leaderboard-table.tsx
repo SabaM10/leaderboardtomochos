@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Player, MatchResult } from "@/lib/types";
 import { winrate } from "@/lib/ranking";
 import LpGraph from "@/components/lp-graph";
@@ -74,6 +74,16 @@ function LiveBadge({ gameStartTime, gameName, tagLine }: { gameStartTime: number
       LIVE
       <span className="text-red-500/60 font-normal">{elapsedMin}m</span>
     </a>
+  );
+}
+
+function MatchDotsLoading() {
+  return (
+    <div className="inline-flex items-center gap-1 px-2 py-1.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <span key={i} className="w-3 h-3 rounded-sm bg-white/10 animate-pulse" style={{ animationDelay: `${i * 80}ms` }} />
+      ))}
+    </div>
   );
 }
 
@@ -458,6 +468,26 @@ function PlayerCard({
 
 export default function LeaderboardTable({ players, ddVersion, positionChanges = {} }: { players: Player[]; ddVersion: string; positionChanges?: Record<string, number> }) {
   const [selected, setSelected] = useState<Player | null>(null);
+  const [matchesMap, setMatchesMap] = useState<Record<string, MatchResult[]>>({});
+  const [loadingMatches, setLoadingMatches] = useState(true);
+
+  useEffect(() => {
+    const puuids = players.filter((p) => p.puuid);
+    if (!puuids.length) { setLoadingMatches(false); return; }
+
+    const puuidToRiotId = Object.fromEntries(puuids.map((p) => [p.puuid!, p.riotId]));
+    const puuidsParam = puuids.map((p) => p.puuid!).join(",");
+
+    fetch(`/api/matches/batch?puuids=${encodeURIComponent(puuidsParam)}`)
+      .then((r) => r.json())
+      .then((data: Record<string, MatchResult[]>) => {
+        setMatchesMap(Object.fromEntries(
+          Object.entries(data).map(([puuid, matches]) => [puuidToRiotId[puuid] ?? puuid, matches])
+        ));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMatches(false));
+  }, [players]);
 
   return (
     <>
@@ -466,7 +496,7 @@ export default function LeaderboardTable({ players, ddVersion, positionChanges =
         {players.map((player, i) => (
           <PlayerCard
             key={player.riotId}
-            player={player}
+            player={{ ...player, lastMatches: matchesMap[player.riotId] ?? [] }}
             pos={i}
             ddVersion={ddVersion}
             positionDelta={positionChanges[player.riotId] ?? 0}
@@ -560,7 +590,9 @@ export default function LeaderboardTable({ players, ddVersion, positionChanges =
                       ) : <span className="text-zinc-600">—</span>}
                     </td>
                     <td className="px-4 py-5 text-right">
-                      <MatchDots matches={player.lastMatches} />
+                      {loadingMatches
+                        ? <MatchDotsLoading />
+                        : <MatchDots matches={matchesMap[player.riotId] ?? []} />}
                     </td>
                   </tr>
                 );
@@ -575,8 +607,8 @@ export default function LeaderboardTable({ players, ddVersion, positionChanges =
         <MatchHistoryModal
           player={selected}
           ddVersion={ddVersion}
-          matches={selected.lastMatches}
-          loadingMatches={false}
+          matches={matchesMap[selected.riotId] ?? []}
+          loadingMatches={loadingMatches}
           onClose={() => setSelected(null)}
         />
       )}
