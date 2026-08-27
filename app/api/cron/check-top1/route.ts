@@ -189,6 +189,10 @@ export async function GET(req: NextRequest) {
         await sendDiscordMessage(
           `${mention}📉 **${player.gameName}** bajó de **${fromLabel}** a **${toLabel}** 💀`
         );
+        // Chiste para Onore: cada vez que se cae de Master
+        if (player.gameName === "Onore" && prev.tier === "MASTER") {
+          await sendDiscordMessage(":pray::skin-tone-1: Basta porfavor.");
+        }
       } else if (currWeight > prevWeight) {
         const fromLabel = formatTier(prev.tier, prev.rank);
         const toLabel = formatTier(player.ranked.tier, player.ranked.rank ?? null);
