@@ -8,7 +8,6 @@ import LeaderboardTable from "@/components/leaderboard-table";
 import AutoRefresh from "@/components/auto-refresh";
 import PositionChart from "@/components/position-chart";
 import { kv } from "@vercel/kv";
-import Link from "next/link";
 
 async function getDDragonVersion(): Promise<string> {
   try {
@@ -136,13 +135,6 @@ export default async function Home() {
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <AutoRefresh />
             </div>
-            <Link
-              href="/estreno"
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase border border-purple-500/30 text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 transition-colors"
-            >
-              <span className="animate-pulse">🎬</span>
-              Estreno Oficial
-            </Link>
           </div>
         </div>
 
