@@ -1,0 +1,23 @@
+name: Daily SoloQ Games
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # 7:00 ART (UTC-3) todos los días
+  workflow_dispatch:         # También se puede correr manualmente
+    inputs:
+      channel:
+        description: 'ID de canal de Discord para pruebas (vacío = canal real)'
+        required: false
+
+jobs:
+  daily-games:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar alerta de partidas diarias
+        run: |
+          URL="${{ secrets.VERCEL_APP_URL }}/api/cron/daily-games?secret=${{ secrets.CRON_SECRET }}"
+          CHANNEL="${{ github.event.inputs.channel }}"
+          if [ -n "$CHANNEL" ]; then URL="$URL&channel=$CHANNEL"; fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then exit 1; fi
