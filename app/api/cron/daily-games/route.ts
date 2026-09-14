@@ -4,6 +4,8 @@ import { fetchAllPlayers } from "@/lib/riot";
 import { FRIENDS } from "@/config/friends";
 
 const KV_BASELINE = "leaderboard:daily-games-baseline";
+const KV_FIRST_SEND_DONE = "leaderboard:daily-games-first-send-done";
+const TEST_CHANNEL_ID = "1152387106468016198";
 
 interface GamesBaseline {
   total: number;
@@ -66,8 +68,13 @@ export async function GET(req: NextRequest) {
     })
     .sort((a, b) => b.gamesPlayed - a.gamesPlayed);
 
+  // El primer envío real (después del baseline inicial) se manda solo al
+  // canal de prueba; recién de ahí en adelante va al canal real.
+  const firstSendDone = testChannel ? true : await kv.get<boolean>(KV_FIRST_SEND_DONE);
+  const targetChannel = testChannel || (firstSendDone ? null : TEST_CHANNEL_ID);
+
   const roleId = process.env.DISCORD_LOL_ROLE_ID;
-  const mention = roleId && !testChannel ? `<@&${roleId}> ` : "";
+  const mention = roleId && !targetChannel ? `<@&${roleId}> ` : "";
   const top = stats[0];
 
   const lines: string[] = [
@@ -80,12 +87,15 @@ export async function GET(req: NextRequest) {
     lines.push("", `🔥 **El más grindeador:** ${top.gameName} con ${top.gamesPlayed} partidas`);
   }
 
-  await sendDiscordMessage(lines.join("\n"), testChannel);
-  if (!preview) await kv.set(KV_BASELINE, newBaseline);
+  await sendDiscordMessage(lines.join("\n"), targetChannel);
+  if (!preview) {
+    await kv.set(KV_BASELINE, newBaseline);
+    if (!firstSendDone) await kv.set(KV_FIRST_SEND_DONE, true);
+  }
 
   return NextResponse.json({
     message: preview ? "Mensaje enviado (preview, baseline sin cambios)" : "Mensaje enviado",
-    channel: testChannel || "default",
+    channel: targetChannel || "default",
     stats,
   });
 }
